@@ -14,7 +14,7 @@ export default function RootLayout() {
         <AuthProvider>
           <View style={{ flex: 1, backgroundColor: C.bg }}>
             <Slot />
-            <StatusBar style="light" />
+            <StatusBar style="auto" />
           </View>
         </AuthProvider>
       </SafeAreaProvider>

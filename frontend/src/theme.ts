@@ -1,24 +1,37 @@
+// New theme matching coin-connect-2 reference: pink/coral primary, light backgrounds with dark purple match screen
 export const C = {
-  bg: '#060A14',
-  surface: '#0C1322',
-  surfaceHi: '#162032',
-  border: '#1E293B',
-  borderGlass: 'rgba(255,255,255,0.08)',
-  textPrimary: '#FFFFFF',
-  textSecondary: '#A0ABC0',
-  textMuted: '#64748B',
-  gold: '#D4AF37',
-  goldHi: '#E5C865',
-  goldLo: '#B3932E',
-  danger: '#EF4444',
-  emerald: '#0E3F30',
-  success: '#10B981',
-};
+  // Backgrounds
+  bg: '#FFFFFF',
+  bgSoft: '#F8F6F8',
+  bgDark: '#1A0B2E',     // match screen background
+  bgDarkAlt: '#3D1654',  // match screen gradient bottom
+  surface: '#FFFFFF',
+  surfaceAlt: '#F4F4F7',
 
-export const fonts = {
-  heading: 'Outfit_700Bold',
-  headingSemi: 'Outfit_600SemiBold',
-  body: 'Manrope_400Regular',
-  bodyMed: 'Manrope_500Medium',
-  bodyBold: 'Manrope_700Bold',
+  // Brand
+  pink: '#FF2D7B',       // primary
+  pinkSoft: '#FF6BA0',
+  pinkDark: '#D81B60',
+  pinkBg: '#FFE5EE',     // light pink background for badges
+
+  // Accents
+  yellow: '#F9B934',
+  yellowBg: '#FFF3D6',
+  purple: '#8B5CF6',
+  purpleBg: '#EDE7FE',
+  blue: '#3B82F6',
+  blueBg: '#DBEAFE',
+  green: '#22C55E',
+
+  // Text
+  textPrimary: '#0F0712',
+  textSecondary: '#6B5C73',
+  textMuted: '#9B8FA3',
+  textOnPink: '#FFFFFF',
+
+  // Borders
+  border: '#EDE7F0',
+  borderSoft: '#F2EEF4',
+
+  danger: '#EF4444',
 };

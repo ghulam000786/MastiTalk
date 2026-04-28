@@ -59,7 +59,7 @@ export default function CallScreen() {
       }
     } catch {}
     await refresh();
-    router.replace('/(tabs)/home');
+    router.replace('/(tabs)/match');
   };
 
   const toggleMute = () => {

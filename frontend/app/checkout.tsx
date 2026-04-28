@@ -60,7 +60,7 @@ export default function Checkout() {
           Alert.alert(
             'Payment successful',
             `+${r.coins_added} coins added. New balance: ${r.balance}`,
-            [{ text: 'OK', onPress: () => router.replace('/(tabs)/home') }]
+            [{ text: 'OK', onPress: () => router.replace('/(tabs)/match') }]
           );
         } catch (e: any) {
           setStatus('failed');

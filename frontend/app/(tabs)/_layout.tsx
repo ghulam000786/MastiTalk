@@ -2,9 +2,9 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { View, StyleSheet, Platform } from 'react-native';
+import { Redirect } from 'expo-router';
 import { C } from '../../src/theme';
 import { useAuth } from '../../src/auth';
-import { Redirect } from 'expo-router';
 
 export default function TabsLayout() {
   const { user, loading } = useAuth();
@@ -15,51 +15,45 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: C.surface,
-          borderTopColor: C.border,
+          backgroundColor: '#FFFFFF',
+          borderTopColor: C.borderSoft,
           borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 88 : 68,
+          height: Platform.OS === 'ios' ? 86 : 68,
           paddingTop: 10,
           paddingBottom: Platform.OS === 'ios' ? 28 : 12,
         },
-        tabBarActiveTintColor: C.gold,
+        tabBarShowLabel: false,
+        tabBarActiveTintColor: C.pink,
         tabBarInactiveTintColor: C.textMuted,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}
     >
       <Tabs.Screen
-        name="home"
+        name="explore"
         options={{
-          title: 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name={focused ? 'home' : 'home-outline'} color={color} />
+            <Ionicons name={focused ? 'globe' : 'globe-outline'} size={26} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="store"
+        name="match"
         options={{
-          title: 'Store',
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon name={focused ? 'diamond' : 'diamond-outline'} color={color} />
-          ),
+          tabBarIcon: ({ focused }) => <CenterIcon focused={focused} />,
         }}
       />
       <Tabs.Screen
-        name="history"
+        name="chat"
         options={{
-          title: 'History',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name={focused ? 'time' : 'time-outline'} color={color} />
+            <Ionicons name={focused ? 'chatbubble' : 'chatbubble-outline'} size={24} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name={focused ? 'person' : 'person-outline'} color={color} />
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={26} color={color} />
           ),
         }}
       />
@@ -67,13 +61,22 @@ export default function TabsLayout() {
   );
 }
 
-function TabIcon({ name, color }: { name: any; color: string }) {
+function CenterIcon({ focused }: { focused: boolean }) {
   return (
-    <View style={styles.icon}>
-      <Ionicons name={name} size={22} color={color} />
+    <View style={[styles.center, focused ? styles.centerActive : styles.centerInactive]}>
+      <Ionicons name="play" size={22} color={focused ? '#fff' : C.textMuted} />
     </View>
   );
 }
 const styles = StyleSheet.create({
-  icon: { justifyContent: 'center', alignItems: 'center' },
+  center: {
+    width: 56, height: 56, borderRadius: 28,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  centerActive: {
+    backgroundColor: C.pink,
+    shadowColor: C.pink, shadowOpacity: 0.45, shadowRadius: 12, shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
+  },
+  centerInactive: { backgroundColor: '#F4F4F7' },
 });
