@@ -49,6 +49,7 @@ class RegisterIn(BaseModel):
     email: EmailStr
     password: str
     name: str
+    gender: Optional[str] = "boy"
 
 class LoginIn(BaseModel):
     email: EmailStr
@@ -151,7 +152,8 @@ async def register(body: RegisterIn):
     user_doc = {
         "id": user_id, "email": body.email.lower(), "name": body.name,
         "password_hash": hash_password(body.password),
-        "coins": 50, "credits": 0, "gender": "boy",
+        "coins": 50, "credits": 0,
+        "gender": (body.gender or "boy").lower(),
         "provider": "password", "created_at": now_iso(),
     }
     await db.users.insert_one(user_doc)

@@ -16,7 +16,7 @@ type AuthCtx = {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, gender?: string) => Promise<void>;
   loginWithGoogleSession: (sessionId: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -58,9 +58,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await setToken(r.token);
     setUser(r.user);
   };
-  const register = async (name: string, email: string, password: string) => {
+  const register = async (name: string, email: string, password: string, gender: string = 'boy') => {
     const r = await api<{ token: string; user: User }>('/auth/register', {
-      method: 'POST', body: JSON.stringify({ name, email, password }),
+      method: 'POST', body: JSON.stringify({ name, email, password, gender }),
     });
     await setToken(r.token);
     setUser(r.user);
