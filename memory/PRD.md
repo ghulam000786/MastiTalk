@@ -1,36 +1,45 @@
-# Coin Connect – Product Requirements Document
+# Coin Connect — PRD
 
-## Overview
-Coin Connect is a mobile video-calling app (Expo React Native) where users purchase coin packs via Razorpay and spend coins to make 1-to-1 video calls powered by Agora.
+## Concept
+A premium random-video-call mobile app where users buy coin packs via Razorpay and spend coins (10/min) on Agora video calls.
 
-## Tech Stack
-- Frontend: Expo Router (SDK 54), React Native, react-native-webview
+## Tech
+- Frontend: Expo Router SDK 54 (React Native), file-based routes
 - Backend: FastAPI + Motor (MongoDB)
-- Integrations: Agora RTC (via Web SDK in WebView), Razorpay Checkout (in WebView)
-- Auth: JWT (email + password, bcrypt hashed)
+- Integrations: **Agora RTC** (Web SDK in WebView), **Razorpay Checkout** (web SDK + WebView fallback), **Emergent Google Auth**
+- Auth: JWT (email+password) + Google OAuth (Emergent-managed) — both yield app JWTs.
 
-## Core Features
-1. Sign up / Sign in (JWT). New users get 50 free coins.
-2. Home dashboard – coin balance, quick actions, start call by channel name.
-3. Coin Store – buy coin packs (100/550/1200/6500 coins).
-4. Checkout – Razorpay secure checkout inside WebView with signature verification.
-5. Video Call – Agora Web SDK in WebView; mute/camera/end-call controls; minute-based billing (10 coins / minute).
-6. Activity History – credits (purchases) and debits (call spends) with timestamps.
-7. Profile – user info, balance, sign out.
+## Screens (file-based)
+- `/(auth)/login` — Pink flame logo, "Continue with Google", "More options" link to demo email login.
+- `/(tabs)/match` — Dark purple bg, animated radar rings, central avatar, "Tap Start to find a match", pink Start button → Agora call.
+- `/(tabs)/explore` — White, "Explore" title, 6 profile cards with names/countries, pink call buttons.
+- `/(tabs)/chat` — White, "Messages", mock recent chats.
+- `/(tabs)/profile` — Pink hero card, Coins/Credits/History stats, Get VIP CTA, language, camera-beauty toggle, Privacy/Terms/Community, Sign out.
+- `/store` — Buy coin packs (4 packs, 99–3499 INR).
+- `/checkout` — Razorpay JS SDK (web) / WebView (native).
+- `/history` — Activity ledger.
+- `/call/[channel]` — Agora video call screen (mute, camera, end-call), minute-billing.
 
-## Backend Endpoints
+## Backend endpoints
 - `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`
-- `GET /api/packs`
-- `GET /api/payments/config`
+- `POST /api/auth/google-session` — exchanges Emergent session_id for app JWT
+- `GET /api/packs`, `GET /api/payments/config`
 - `POST /api/payments/create-order`, `POST /api/payments/verify`
 - `POST /api/agora/token`, `POST /api/agora/end-call`
+- `GET /api/explore` — 6 mock profiles + online_count
 - `GET /api/transactions`, `GET /api/calls`
 
-## Revenue enhancement (built-in)
-- Welcome bonus (50 coins) drives sign-ups.
-- "Best Value" highlighted pack nudges higher-ticket purchases.
-- Bonus coins on larger packs (550 for ₹449, 1200 for ₹799, 6500 for ₹3499) increases average order value.
+## Revenue / Growth hooks built-in
+- Welcome bonus 50 coins drives sign-ups.
+- "Best Value" highlighted pack pushes higher-ticket purchase.
+- Bonus coins on bigger packs (1200 for ₹799, 6500 for ₹3499) raises AOV.
+- "Get VIP" CTA on profile signals upsell path.
 
-## Credentials (test)
-- Agora App ID: `c029ff21a31143f8832576612dfb6f9b` (configured)
-- Razorpay test key: `rzp_test_ShfLVkUYr0sCwT` (configured)
+## Publish readiness
+- `app.json` has app name "Coin Connect", scheme `coinconnect`, dark UI, iOS camera/mic usage descriptions, Android `CAMERA`/`RECORD_AUDIO`/`INTERNET` permissions.
+- All credentials in `/app/backend/.env` only — no hardcoding.
+- Use the **Publish** button (top-right of Emergent) to build APK/IPA & submit to stores.
+
+## Known caveats (informational, not blocking)
+- The native Razorpay flow uses an in-app WebView. The Web preview uses Razorpay JS directly (because react-native-webview has no web platform).
+- Agora calls require camera/mic browser permission on web preview; on native devices, app permissions kick in.
