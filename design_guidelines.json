@@ -1,0 +1,112 @@
+{
+  "project_name": "Coin Connect",
+  "app_type": "mobile_web_app",
+  "theme": "dark",
+  "archetype": "Archetype 5 (Jewel & Luxury)",
+  "vibe": "Premium, trustworthy, cinematic, expensive feel",
+  "design_philosophy": "A high-end fintech wallet fused with a seamless video-calling experience. The design uses deep midnight blues with radiant gold accents to build trust for payments while feeling delightful and exclusive.",
+  "colors": {
+    "background": {
+      "default": "#060A14",
+      "surface": "#0C1322",
+      "surface_glass": "rgba(12, 19, 34, 0.6)",
+      "surface_highlight": "#162032"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A0ABC0",
+      "muted": "#64748B"
+    },
+    "brand": {
+      "primary": "#D4AF37",
+      "primary_hover": "#E5C865",
+      "primary_active": "#B3932E",
+      "emerald_accent": "#0E3F30",
+      "danger": "#EF4444"
+    },
+    "border": {
+      "default": "#1E293B",
+      "glass": "rgba(255, 255, 255, 0.08)"
+    }
+  },
+  "typography": {
+    "fonts": {
+      "heading": "Outfit, sans-serif",
+      "body": "Manrope, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "rules": {
+      "h1": "text-4xl font-bold tracking-tight text-white",
+      "h2": "text-2xl font-bold tracking-tight text-white",
+      "h3": "text-xl font-semibold text-white",
+      "body": "text-base font-normal leading-relaxed text-slate-300",
+      "small": "text-sm font-medium tracking-wide uppercase text-slate-400"
+    }
+  },
+  "spacing_and_layout": {
+    "container": "max-w-md mx-auto min-h-screen bg-[#060A14] overflow-x-hidden relative",
+    "section_padding": "px-6 py-8",
+    "gap_standard": "gap-4",
+    "gap_large": "gap-8"
+  },
+  "surfaces_and_shadows": {
+    "glass_card": "backdrop-blur-xl bg-[#0C1322]/60 border border-white/10 rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.4)]",
+    "solid_card": "bg-[#0C1322] border border-slate-800 rounded-3xl shadow-lg",
+    "bottom_nav": "fixed bottom-0 w-full max-w-md backdrop-blur-2xl bg-[#060A14]/80 border-t border-white/5 pb-safe pt-3 px-6 flex justify-between items-center z-50",
+    "button_primary": "bg-[#D4AF37] text-black font-semibold rounded-2xl px-6 py-4 transition-all hover:bg-[#E5C865] hover:-translate-y-1 shadow-[0_4px_20px_rgba(212,175,55,0.3)]",
+    "button_secondary": "bg-[#162032] text-white font-semibold rounded-2xl px-6 py-4 border border-white/10 transition-all hover:bg-[#1E293B]"
+  },
+  "components_strategy": {
+    "navigation": "Use a fixed bottom navigation bar containing Home, Call, History, and Profile icons. Active state highlighted in gold.",
+    "coin_balance_card": "A premium glassmorphic card on the Home screen. Use a subtle dark blue abstract background image layered with text. Large prominent balance display.",
+    "coin_store": "Grid of coin packs. Each pack uses 'solid_card' styling with a shiny gold coin image, coin amount, and clear pricing.",
+    "video_call_screen": "Cinematic dark interface. Floating action buttons (mute, end call, switch camera) at the bottom. A subtle pulsing effect around the user's avatar when waiting for connection.",
+    "inputs": "Shadcn UI inputs heavily customized: bg-[#0C1322] border-white/10 text-white focus:ring-1 focus:ring-[#D4AF37] rounded-xl h-14"
+  },
+  "media": {
+    "image_urls": [
+      {
+        "category": "hero_background",
+        "url": "https://images.unsplash.com/photo-1597773150796-e5c14ebecbf5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAxODF8MHwxfHNlYXJjaHwxfHxkYXJrJTIwYmx1ZSUyMGFic3RyYWN0fGVufDB8fHx8MTc3NzM3MDcwNHww&ixlib=rb-4.1.0&q=85",
+        "description": "Dark blue abstract painting for the coin balance card background to give a premium cinematic feel"
+      },
+      {
+        "category": "gold_coin_asset",
+        "url": "https://images.unsplash.com/photo-1589180176337-503fed4bcfe0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzB8MHwxfHNlYXJjaHwzfHxnb2xkJTIwY29pbnxlbnwwfHx8fDE3NzczNzA3MDR8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Gold round coin to be used in the Coin Store packs"
+      },
+      {
+        "category": "user_avatar_1",
+        "url": "https://images.unsplash.com/photo-1762522921456-cdfe882d36c3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwxfHx5b3VuZyUyMHByb2Zlc3Npb25hbCUyMHBvcnRyYWl0fGVufDB8fHx8MTc3NzM3MDY4N3ww&ixlib=rb-4.1.0&q=85",
+        "description": "Avatar for active user or incoming caller"
+      },
+      {
+        "category": "user_avatar_2",
+        "url": "https://images.pexels.com/photos/9363130/pexels-photo-9363130.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Avatar for call history list"
+      }
+    ]
+  },
+  "icons": {
+    "library": "lucide-react",
+    "usage": "Use Lucide React icons. Keep stroke width at 1.5 for a clean, elegant look."
+  },
+  "animations": {
+    "hover": "Subtle transform translate-y-[-2px] with increased shadow opacity.",
+    "page_transition": "Fade in with a slight upward translation (framer-motion recommended: initial={{opacity: 0, y: 10}} animate={{opacity: 1, y: 0}})",
+    "pulse": "Use Tailwind animate-pulse for the 'connecting...' state in video calls."
+  },
+  "testing": {
+    "data_testid_rule": "All interactive and key informational elements MUST include a data-testid attribute in kebab-case. Examples: data-testid='login-button', data-testid='coin-balance-text', data-testid='buy-coin-pack-100'."
+  },
+  "instructions_to_main_agent": [
+    "Treat the web app as a mobile PWA. Enclose all major views within a `max-w-md mx-auto min-h-screen relative` container to simulate a mobile app interface.",
+    "Build the bottom navigation component to switch between Home, Call, and History views.",
+    "Customize Shadcn components heavily to match the Jewel & Luxury archetype. Remove default Vercel/Stripe styles.",
+    "For the coin balance card, use the glassmorphism rules provided and layer the `hero_background` image with a low opacity overlay.",
+    "Ensure the gold color `#D4AF37` is used purely for call-to-actions, active states, and coin balances to maintain premium contrast.",
+    "The video call screen should dominate the viewport, utilizing the deep dark background `#060A14` with floating control buttons.",
+    "Do not use generic font Inter for headings, strictly use Outfit.",
+    "ALWAYS apply data-testid to buttons, inputs, tabs, and coin amounts."
+  ]
+}
