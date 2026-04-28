@@ -1,12 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, Alert, Platform } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../src/api';
 import { useAuth } from '../../src/auth';
 import { C } from '../../src/theme';
+
+// Conditionally require WebView on native only
+let WebViewMod: any = null;
+if (Platform.OS !== 'web') {
+  try { WebViewMod = require('react-native-webview').WebView; } catch {}
+}
 
 type TokenResp = { token: string; app_id: string; channel: string; uid: number; expires_at: number; call_id: string };
 
@@ -20,7 +25,8 @@ export default function CallScreen() {
   const [remoteUsers, setRemoteUsers] = useState(0);
   const timerRef = useRef<any>(null);
   const endedRef = useRef(false);
-  const wvRef = useRef<WebView>(null);
+  const wvRef = useRef<any>(null);
+  const iframeRef = useRef<any>(null);
 
   useEffect(() => {
     (async () => {
@@ -63,21 +69,41 @@ export default function CallScreen() {
   };
 
   const toggleMute = () => {
-    wvRef.current?.injectJavaScript(`try{window.toggleMute && window.toggleMute();}catch(e){} true;`);
+    if (Platform.OS === 'web') {
+      try { iframeRef.current?.contentWindow?.toggleMute?.(); } catch {}
+    } else {
+      wvRef.current?.injectJavaScript(`try{window.toggleMute && window.toggleMute();}catch(e){} true;`);
+    }
   };
   const toggleCamera = () => {
-    wvRef.current?.injectJavaScript(`try{window.toggleCamera && window.toggleCamera();}catch(e){} true;`);
+    if (Platform.OS === 'web') {
+      try { iframeRef.current?.contentWindow?.toggleCamera?.(); } catch {}
+    } else {
+      wvRef.current?.injectJavaScript(`try{window.toggleCamera && window.toggleCamera();}catch(e){} true;`);
+    }
   };
 
-  const onMessage = (ev: WebViewMessageEvent) => {
+  const onMessage = (ev: any) => {
     try {
-      const msg = JSON.parse(ev.nativeEvent.data);
+      const data = ev?.nativeEvent?.data ?? ev?.data;
+      const msg = typeof data === 'string' ? JSON.parse(data) : data;
       if (msg.type === 'joined') setStatus('connected');
       else if (msg.type === 'remote-joined') setRemoteUsers(msg.count || 1);
       else if (msg.type === 'remote-left') setRemoteUsers(msg.count || 0);
       else if (msg.type === 'error') { setErr(msg.error || 'Call error'); setStatus('error'); }
     } catch {}
   };
+
+  // On web, listen to postMessage from iframe
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const handler = (e: MessageEvent) => {
+      if (!e.data || typeof e.data !== 'object' || !e.data.__cc_call) return;
+      onMessage({ data: e.data });
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
 
   const fmt = (s: number) => {
     const m = Math.floor(s / 60), sec = s % 60;
@@ -99,23 +125,45 @@ export default function CallScreen() {
 
   const html = tokenData ? buildCallHtml(tokenData) : '';
 
+  const renderCallSurface = () => {
+    if (!tokenData) return null;
+    if (Platform.OS === 'web') {
+      // Use iframe with srcDoc to host Agora Web SDK
+      const allow = 'camera; microphone; autoplay; encrypted-media';
+      // @ts-ignore – render an HTML iframe element on web
+      return React.createElement('iframe', {
+        ref: iframeRef,
+        srcDoc: html,
+        allow,
+        style: {
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+          width: '100%', height: '100%', border: 'none',
+          backgroundColor: '#060A14',
+        },
+        'data-testid': 'agora-iframe',
+      });
+    }
+    if (!WebViewMod) return null;
+    return (
+      <WebViewMod
+        ref={wvRef}
+        testID="agora-webview"
+        originWhitelist={['*']}
+        source={{ html, baseUrl: 'https://webdemo.agora.io' }}
+        onMessage={onMessage}
+        javaScriptEnabled
+        domStorageEnabled
+        allowsInlineMediaPlayback
+        mediaPlaybackRequiresUserAction={false}
+        mixedContentMode="always"
+        style={StyleSheet.absoluteFill}
+      />
+    );
+  };
+
   return (
     <View style={styles.wrap}>
-      {tokenData ? (
-        <WebView
-          ref={wvRef}
-          testID="agora-webview"
-          originWhitelist={['*']}
-          source={{ html, baseUrl: 'https://webdemo.agora.io' }}
-          onMessage={onMessage}
-          javaScriptEnabled
-          domStorageEnabled
-          allowsInlineMediaPlayback
-          mediaPlaybackRequiresUserAction={false}
-          mixedContentMode="always"
-          style={StyleSheet.absoluteFill}
-        />
-      ) : null}
+      {renderCallSurface()}
 
       {/* Top Bar */}
       <SafeAreaView pointerEvents="box-none" style={styles.topOverlay} edges={['top']}>
@@ -188,7 +236,13 @@ function buildCallHtml(t: { app_id: string; channel: string; token: string; uid:
   var localTracks = { audio:null, video:null };
   var muted = false, camOn = true;
   var remoteCount = 0;
-  function post(m){ try{ window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify(m)); }catch(e){} }
+  function post(m){
+    try{
+      m.__cc_call = true;
+      if(window.ReactNativeWebView){ window.ReactNativeWebView.postMessage(JSON.stringify(m)); }
+      else if(window.parent && window.parent !== window){ window.parent.postMessage(m, '*'); }
+    }catch(e){}
+  }
 
   client.on('user-published', async function(user, mediaType){
     try{
@@ -257,38 +311,38 @@ function buildCallHtml(t: { app_id: string; channel: string; token: string; uid:
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: C.bg },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 10 },
-  errTitle: { color: C.textPrimary, fontSize: 20, fontWeight: '700', marginTop: 10 },
-  errMsg: { color: C.textSecondary, fontSize: 14, textAlign: 'center' },
-  backBtn: { backgroundColor: C.gold, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12, marginTop: 16 },
-  backBtnText: { color: '#000', fontWeight: '700' },
+  wrap: { flex: 1, backgroundColor: '#060A14' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 10, backgroundColor: '#060A14' },
+  errTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '700', marginTop: 10 },
+  errMsg: { color: '#A0ABC0', fontSize: 14, textAlign: 'center' },
+  backBtn: { backgroundColor: C.pink, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12, marginTop: 16 },
+  backBtnText: { color: '#fff', fontWeight: '700' },
 
   topOverlay: { position: 'absolute', left: 0, right: 0, top: 0 },
   topBar: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   chBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: 'rgba(12,19,34,0.85)', paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 999, borderWidth: 1, borderColor: C.borderGlass,
+    borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  chBadgeText: { color: C.textPrimary, fontWeight: '700', fontSize: 13 },
+  chBadgeText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
   timerBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: 'rgba(12,19,34,0.85)', paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 999, borderWidth: 1, borderColor: C.borderGlass,
+    borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
-  timerText: { color: C.gold, fontWeight: '700', fontSize: 13 },
+  timerText: { color: C.pink, fontWeight: '700', fontSize: 13 },
 
   waiting: { alignItems: 'center', marginTop: 24, gap: 8, paddingHorizontal: 24 },
-  waitingText: { color: C.textPrimary, fontSize: 15, fontWeight: '600', marginTop: 8 },
-  waitingSub: { color: C.textMuted, fontSize: 12 },
+  waitingText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600', marginTop: 8 },
+  waitingSub: { color: '#A0ABC0', fontSize: 12 },
 
   bottomOverlay: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   controls: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 22, paddingVertical: 24 },
   ctrlBtn: {
     width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(22,32,50,0.9)',
-    justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: C.borderGlass,
+    justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
   endBtn: {
     width: 68, height: 68, borderRadius: 34, backgroundColor: C.danger,
