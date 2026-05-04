@@ -12,3 +12,13 @@
     "production": {}
   }
 }
+"env": {
+        "EXPO_PUBLIC_BACKEND_URL": "https://mastitalk-production.up.railway.app"
+      }
+    },
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_BACKEND_URL": "https://mastitalk-production.up.railway.app"
+      }
+    }
+  }
