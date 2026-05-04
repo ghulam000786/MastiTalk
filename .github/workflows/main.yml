@@ -1,52 +1,47 @@
-name: Build APK
-on: workflow_dispatch
+name: Android APK Build
+
+on:
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
+          distribution: 'temurin'
           java-version: '17'
-          
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        
+
       - name: Install dependencies
-        run: |
-          cd frontend
-          npm install
-          
-      - name: Generate Android project
-        run: |
-          cd frontend
-          EXPO_NO_DOTENV=1 npx expo run:android --no-install --no-bundler
-        env:
-          CI: 1
-        continue-on-error: true
-          
-      - name: Create local.properties
-        run: |
-          cd frontend/android
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
-          
+        working-directory: ./frontend
+        run: npm install
+
+      - name: Install expo-build-properties
+        working-directory: ./frontend
+        run: npx expo install expo-build-properties
+
+      - name: Prebuild Android project
+        working-directory: ./frontend
+        run: npx expo prebuild --platform android --clean
+
       - name: Build APK
-        run: |
-          cd frontend/android
-          chmod +x ./gradlew
-          ./gradlew assembleRelease --no-daemon
-          
+        working-directory: ./frontend/android
+        run: ./gradlew assembleRelease
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MastiTalk-APK
+          name: app-release
           path: frontend/android/app/build/outputs/apk/release/app-release.apk
