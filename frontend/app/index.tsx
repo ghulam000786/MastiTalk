@@ -9,9 +9,11 @@ export default function Index() {
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator color={C.gold} size="large" />
+        <ActivityIndicator color={C.pink} size="large" />
       </View>
     );
   }
-  return <Redirect href={user ? '/(tabs)/match' : '/(auth)/login'} />;
+  if (!user) return <Redirect href="/(auth)/login" />;
+  if (!user.onboarded) return <Redirect href="/onboarding" />;
+  return <Redirect href="/(tabs)/match" />;
 }

@@ -9,6 +9,7 @@ import { useAuth } from '../../src/auth';
 export default function TabsLayout() {
   const { user, loading } = useAuth();
   if (!loading && !user) return <Redirect href="/(auth)/login" />;
+  if (!loading && user && !user.onboarded) return <Redirect href="/onboarding" />;
 
   return (
     <Tabs

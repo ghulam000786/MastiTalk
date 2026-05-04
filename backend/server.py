@@ -85,6 +85,10 @@ class ReportIn(BaseModel):
 class BlockIn(BaseModel):
     user_id: str
 
+class OnboardingIn(BaseModel):
+    gender: str
+    age: int
+
 # ---------- Data ----------
 COIN_PACKS = {
     "pack_100": {"id": "pack_100", "coins": 100, "price_inr": 99, "label": "Starter"},
@@ -147,10 +151,16 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 def public_user(u: dict) -> dict:
+    age = u.get("age")
+    gender = u.get("gender")
+    onboarded = bool(gender in ("boy", "girl") and isinstance(age, int) and age >= 18)
     return {
         "id": u["id"], "email": u["email"], "name": u["name"],
         "picture": u.get("picture"), "coins": u.get("coins", 0),
-        "credits": u.get("credits", 0), "gender": u.get("gender", "boy"),
+        "credits": u.get("credits", 0),
+        "gender": gender or None,
+        "age": age,
+        "onboarded": onboarded,
     }
 
 def conversation_id(a: str, b: str) -> str:
@@ -163,13 +173,6 @@ async def root():
 
 @api.post("/auth/register")
 async def register(body: RegisterIn):
-    if body.age is None or body.age < 18:
-        raise HTTPException(status_code=400, detail="You must be at least 18 years old to use Coin Connect.")
-    if body.age > 120:
-        raise HTTPException(status_code=400, detail="Please enter a valid age.")
-    gender = (body.gender or "").lower().strip()
-    if gender not in ("boy", "girl"):
-        raise HTTPException(status_code=400, detail="Please select your gender (Boy or Girl).")
     existing = await db.users.find_one({"email": body.email.lower()})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -178,8 +181,8 @@ async def register(body: RegisterIn):
         "id": user_id, "email": body.email.lower(), "name": body.name,
         "password_hash": hash_password(body.password),
         "coins": 50, "credits": 0,
-        "gender": gender,
-        "age": body.age,
+        "gender": None,  # set in onboarding
+        "age": None,     # set in onboarding
         "provider": "password", "created_at": now_iso(),
     }
     await db.users.insert_one(user_doc)
@@ -220,7 +223,9 @@ async def google_session(body: GoogleSessionIn):
         user_id = str(uuid.uuid4())
         user_doc = {
             "id": user_id, "email": email, "name": name, "picture": picture,
-            "password_hash": "", "coins": 50, "credits": 0, "gender": "boy",
+            "password_hash": "", "coins": 50, "credits": 0,
+            "gender": None,  # set in onboarding
+            "age": None,     # set in onboarding
             "provider": "google", "created_at": now_iso(),
         }
         await db.users.insert_one(user_doc)
@@ -234,6 +239,22 @@ async def google_session(body: GoogleSessionIn):
 @api.get("/auth/me")
 async def me(user: dict = Depends(get_current_user)):
     return {"user": public_user(user)}
+
+@api.post("/users/onboarding")
+async def users_onboarding(body: OnboardingIn, user: dict = Depends(get_current_user)):
+    gender = (body.gender or "").lower().strip()
+    if gender not in ("boy", "girl"):
+        raise HTTPException(status_code=400, detail="Please select Boy or Girl.")
+    if body.age is None or body.age < 18:
+        raise HTTPException(status_code=400, detail="You must be at least 18 years old.")
+    if body.age > 120:
+        raise HTTPException(status_code=400, detail="Please enter a valid age.")
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"gender": gender, "age": body.age, "onboarded_at": now_iso()}},
+    )
+    updated = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password_hash": 0})
+    return {"user": public_user(updated)}
 
 # ---------- Packs ----------
 @api.get("/packs")

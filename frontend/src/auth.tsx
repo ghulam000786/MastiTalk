@@ -9,14 +9,16 @@ export type User = {
   picture?: string | null;
   coins: number;
   credits?: number;
-  gender?: string;
+  gender?: string | null;
+  age?: number | null;
+  onboarded?: boolean;
 };
 
 type AuthCtx = {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, gender: string, age: number) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<void>;
   loginWithGoogleSession: (sessionId: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -58,9 +60,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await setToken(r.token);
     setUser(r.user);
   };
-  const register = async (name: string, email: string, password: string, gender: string, age: number) => {
+  const register = async (name: string, email: string, password: string) => {
     const r = await api<{ token: string; user: User }>('/auth/register', {
-      method: 'POST', body: JSON.stringify({ name, email, password, gender, age }),
+      method: 'POST', body: JSON.stringify({ name, email, password }),
     });
     await setToken(r.token);
     setUser(r.user);

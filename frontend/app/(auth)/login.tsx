@@ -39,7 +39,7 @@ export default function Login() {
       try {
         await loginWithGoogleSession(sid);
         try { window.history.replaceState(null, '', window.location.pathname); } catch {}
-        router.replace('/(tabs)/match');
+        router.replace('/');
       } catch (e: any) {
         Alert.alert('Sign-in failed', e.message || 'Please try again');
         setLoading(false);
@@ -66,7 +66,7 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email.trim().toLowerCase(), password);
-      router.replace('/(tabs)/match');
+      router.replace('/');
     } catch (e: any) {
       setError(e.message || 'Login failed');
     } finally { setLoading(false); }
@@ -76,15 +76,10 @@ export default function Login() {
     setError('');
     if (!name || !email || !password) { setError('All fields required'); return; }
     if (password.length < 6) { setError('Password must be 6+ characters'); return; }
-    if (!gender) { setError('Please select your gender (Boy or Girl)'); return; }
-    const ageNum = parseInt(age, 10);
-    if (!age || isNaN(ageNum)) { setError('Please enter your age'); return; }
-    if (ageNum < 18) { setError('You must be at least 18 years old to use Coin Connect'); return; }
-    if (ageNum > 120) { setError('Please enter a valid age'); return; }
     setLoading(true);
     try {
-      await register(name.trim(), email.trim().toLowerCase(), password, gender, ageNum);
-      router.replace('/(tabs)/match');
+      await register(name.trim(), email.trim().toLowerCase(), password);
+      router.replace('/onboarding');
     } catch (e: any) {
       setError(e.message || 'Registration failed');
     } finally { setLoading(false); }
@@ -145,34 +140,7 @@ export default function Login() {
 
               {isReg ? (
                 <>
-                  <Text style={s.label}>Your age (must be 18 or older)</Text>
-                  <TextInput
-                    testID="reg-age-input"
-                    style={s.input} placeholder="e.g. 21"
-                    placeholderTextColor={C.textMuted}
-                    keyboardType="number-pad" maxLength={3}
-                    value={age} onChangeText={(t) => setAge(t.replace(/[^0-9]/g, ''))}
-                  />
-
-                  <Text style={s.label}>I am a</Text>
-                  <View style={s.genderRow}>
-                    <TouchableOpacity
-                      testID="gender-boy-btn"
-                      style={[s.genderBtn, gender === 'boy' && s.genderActive]}
-                      onPress={() => setGender('boy')}
-                    >
-                      <Ionicons name="male" size={18} color={gender === 'boy' ? '#fff' : C.pink} />
-                      <Text style={[s.genderText, gender === 'boy' && { color: '#fff' }]}>Boy</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      testID="gender-girl-btn"
-                      style={[s.genderBtn, gender === 'girl' && s.genderActive]}
-                      onPress={() => setGender('girl')}
-                    >
-                      <Ionicons name="female" size={18} color={gender === 'girl' ? '#fff' : C.pink} />
-                      <Text style={[s.genderText, gender === 'girl' && { color: '#fff' }]}>Girl</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <Text style={s.regNote}>You will be asked your age & gender after this step.</Text>
                 </>
               ) : null}
 
@@ -346,4 +314,5 @@ const s = StyleSheet.create({
   switchRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 16 },
   switchText: { color: '#C9B6D8', fontSize: 13 },
   switchLink: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  regNote: { color: '#C9B6D8', fontSize: 12, marginTop: 14, fontStyle: 'italic', textAlign: 'center' },
 });
