@@ -6,17 +6,16 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node 18
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - name: Setup Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -26,15 +25,21 @@ jobs:
         working-directory: ./frontend
         run: npm install --legacy-peer-deps
 
-      - name: Build APK using Bubblewrap
+      - name: Export Web Build
+        working-directory: ./frontend
+        run: npx expo export -p web
+
+      - name: Build APK with Capacitor
         working-directory: ./frontend
         run: |
-          npx expo export --platform android
-          npx @bubblewrap/cli init --manifest=https://expo.dev/ --directory=./twa
-          cd twa && npx @bubblewrap/cli build --skipPwaValidation
-          
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+          npx cap init MastiTalk com.mastitalk --web-dir dist
+          npx cap add android
+          npx cap sync android
+          cd android && chmod +x ./gradlew && ./gradlew assembleDebug
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: frontend/twa/app-release-signed.apk
+          name: app-debug
+          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
