@@ -1,29 +1,32 @@
 name: Build APK
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set Up JDK
-        uses: actions/setup-java@v4
+      
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      - name: Make Gradle executable
-        run: chmod +x. /gradlew
-
-      - name: Build Release APK
-        run: ./gradlew assembleRelease
-
+          node-version: 20
+          
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm install
+          
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+          
+      - name: Build APK
+        run: |
+          cd frontend
+          eas build --platform android --profile preview --non-interactive --local --output ./app-release.apk
+          
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: app/build/outputs/apk/release/app-release.apk
+          path: frontend/app-release.apk
