@@ -26,26 +26,26 @@ jobs:
           cd frontend
           npm install
           
-      - name: Remove splash config
+      - name: Create local.properties
         run: |
           cd frontend
-          npx expo config --type public
-          sed -i '/splash/d' app.json || true
-          sed -i '/"plugins"/,/]/d' app.json || true
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           
-      - name: Prebuild Android
+      - name: Generate Android project
         run: |
           cd frontend
-          npx expo prebuild --platform android --no-install
+          EXPO_NO_DOTENV=1 npx expo run:android --no-install --no-bundler
+        env:
+          CI: 1
           
       - name: Build APK
         run: |
           cd frontend/android
           chmod +x ./gradlew
-          ./gradlew assembleRelease
+          ./gradlew assembleRelease --no-daemon
           
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
+          name: MastiTalk-APK
           path: frontend/android/app/build/outputs/apk/release/app-release.apk
