@@ -4,52 +4,15 @@
     "slug": "mastitalk",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "mastitalk",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
-    "ios": {
-      "supportsTablet": true,
-      "infoPlist": {
-        "NSCameraUsageDescription": "Enable video during calls",
-        "NSMicrophoneUsageDescription": "Enable voice during calls"
-      }
-    },
+    "scheme": "mastitalk",
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000414"
-      },
-      "edgeToEdgeEnabled": true,
-      "permissions": [
-        "CAMERA",
-        "RECORD_AUDIO",
-        "MODIFY_AUDIO_SETTINGS",
-        "INTERNET",
-        "ACCESS_NETWORK_STATE"
-      ]
-    },
-    "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "package": "com.mastitalk.app",
+      "versionCode": 1
     },
     "plugins": [
-      "expo-router",
-      ],
-      
-       
-          "android": {
-            "extraMavenRepos": [
-              "https://maven.google.com",
-              "https://jitpack.io"
-            ]
-          }
-        }
-      
-    
-    "experiments": {
-      "typedRoutes": true
-    }
+      "expo-router"
+    ]
   }
-
+}
