@@ -2,17 +2,17 @@
   "expo": {
     "name": "MastiTalk",
     "slug": "mastitalk",
-    "version": "1.0.0",
-    "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
-    "scheme": "mastitalk",
-    "android": {
-      "package": "com.mastitalk.app",
-      "versionCode": 1
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
     },
-    "plugins": [
-      "expo-router"
-    ]
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    }
   }
 }
