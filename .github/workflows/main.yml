@@ -6,42 +6,34 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node 18
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 18
 
-      - name: Setup Java
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Install dependencies
         working-directory: ./frontend
-        run: npm install
+        run: npm install --legacy-peer-deps
 
-      - name: Install expo-build-properties
+      - name: Build APK using Bubblewrap
         working-directory: ./frontend
-        run: npx expo install expo-build-properties
-
-      - name: Prebuild Android project
-        working-directory: ./frontend
-        run: npx expo prebuild --platform android --clean
-
-      - name: Build APK
-        working-directory: ./frontend/android
-        run: ./gradlew assembleRelease
+        run: |
+          npx expo export --platform android
+          npx @bubblewrap/cli build --skipPwaValidation
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: frontend/android/app/build/outputs/apk/release/app-release.apk
+          path: frontend/app-release-signed.apk
