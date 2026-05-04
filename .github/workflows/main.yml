@@ -12,21 +12,32 @@ jobs:
         with:
           node-version: 20
           
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        
       - name: Install dependencies
         run: |
           cd frontend
           npm install
           
-      - name: Install EAS CLI
-        run: npm install -g eas-cli
+      - name: Prebuild Android
+        run: |
+          cd frontend
+          npx expo prebuild --platform android
           
       - name: Build APK
         run: |
-          cd frontend
-          eas build --platform android --profile preview --non-interactive --local --output ./app-release.apk
+          cd frontend/android
+          ./gradlew assembleRelease
           
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: frontend/app-release.apk
+          path: frontend/android/app/build/outputs/apk/release/app-release.apk
