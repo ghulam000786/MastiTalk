@@ -48,7 +48,8 @@ class RegisterIn(BaseModel):
     email: EmailStr
     password: str
     name: str
-    gender: Optional[str] = "boy"
+    gender: Optional[str] = None
+    age: Optional[int] = None
 
 class LoginIn(BaseModel):
     email: EmailStr
@@ -162,6 +163,13 @@ async def root():
 
 @api.post("/auth/register")
 async def register(body: RegisterIn):
+    if body.age is None or body.age < 18:
+        raise HTTPException(status_code=400, detail="You must be at least 18 years old to use Coin Connect.")
+    if body.age > 120:
+        raise HTTPException(status_code=400, detail="Please enter a valid age.")
+    gender = (body.gender or "").lower().strip()
+    if gender not in ("boy", "girl"):
+        raise HTTPException(status_code=400, detail="Please select your gender (Boy or Girl).")
     existing = await db.users.find_one({"email": body.email.lower()})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -170,7 +178,8 @@ async def register(body: RegisterIn):
         "id": user_id, "email": body.email.lower(), "name": body.name,
         "password_hash": hash_password(body.password),
         "coins": 50, "credits": 0,
-        "gender": (body.gender or "boy").lower(),
+        "gender": gender,
+        "age": body.age,
         "provider": "password", "created_at": now_iso(),
     }
     await db.users.insert_one(user_doc)

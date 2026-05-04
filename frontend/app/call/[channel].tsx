@@ -242,13 +242,26 @@ function buildCallHtml(t: { app_id: string; channel: string; token: string; uid:
   html,body{margin:0;padding:0;height:100%;background:#060A14;color:#fff;font-family:system-ui,sans-serif;overflow:hidden}
   #remote{position:absolute;inset:0;background:#060A14}
   #remote video{width:100%;height:100%;object-fit:cover}
-  #local{position:absolute;bottom:120px;right:16px;width:110px;height:160px;border-radius:16px;overflow:hidden;border:2px solid rgba(212,175,55,0.5);background:#0C1322;z-index:5;box-shadow:0 8px 30px rgba(0,0,0,0.5)}
+  #local{position:absolute;bottom:120px;right:16px;width:110px;height:160px;border-radius:16px;overflow:hidden;border:2px solid rgba(255,45,123,0.5);background:#0C1322;z-index:5;box-shadow:0 8px 30px rgba(0,0,0,0.5)}
   #local video{width:100%;height:100%;object-fit:cover}
-  .placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#64748B;font-size:14px}
+  .placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#64748B;font-size:14px;text-align:center;padding:20px}
+  #permWall{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(6,10,20,0.95);z-index:50;padding:30px;text-align:center}
+  #permWall h2{font-size:20px;margin:0 0 12px}
+  #permWall p{font-size:14px;color:#C9B6D8;margin:0 0 20px;line-height:1.5}
+  #permWall button{padding:14px 28px;border-radius:999px;border:none;background:#FF2D7B;color:#fff;font-weight:700;font-size:15px;cursor:pointer;box-shadow:0 8px 24px rgba(255,45,123,0.4)}
+  .icon{font-size:48px;margin-bottom:12px}
+  #permErr{color:#FCA5A5;font-size:13px;margin-top:14px;display:none}
 </style>
 <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.20.0.js"></script>
 </head><body>
-<div id="remote"><div class="placeholder" id="rplace">No remote video yet</div></div>
+<div id="permWall">
+  <div class="icon">📷🎤</div>
+  <h2>Camera & Microphone Access</h2>
+  <p>To start the video call, please allow camera and microphone permissions when your browser asks.</p>
+  <button id="permBtn" onclick="requestPerms()">Enable Camera & Mic</button>
+  <div id="permErr"></div>
+</div>
+<div id="remote"><div class="placeholder" id="rplace">Connecting…</div></div>
 <div id="local"><div class="placeholder" style="font-size:11px">Starting camera…</div></div>
 <script>
   var cfg = ${safe};
@@ -256,6 +269,8 @@ function buildCallHtml(t: { app_id: string; channel: string; token: string; uid:
   var localTracks = { audio:null, video:null };
   var muted = false, camOn = true;
   var remoteCount = 0;
+  var joined = false;
+
   function post(m){
     try{
       m.__cc_call = true;
@@ -283,22 +298,49 @@ function buildCallHtml(t: { app_id: string; channel: string; token: string; uid:
     remoteCount = Math.max(0, remoteCount-1);
     post({type:'remote-left', count: remoteCount});
     if(remoteCount===0){
-      document.getElementById('remote').innerHTML='<div class="placeholder" id="rplace">Waiting for other user...</div>';
+      document.getElementById('remote').innerHTML='<div class="placeholder">Waiting for other user...</div>';
     }
   });
 
+  async function requestPerms(){
+    var btn = document.getElementById('permBtn');
+    var err = document.getElementById('permErr');
+    btn.disabled = true; btn.innerText = 'Requesting…'; err.style.display='none';
+    try {
+      // Trigger permission prompt explicitly
+      var stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      // Stop the test stream — Agora will create its own tracks
+      stream.getTracks().forEach(function(t){ t.stop(); });
+      document.getElementById('permWall').style.display = 'none';
+      await join();
+    } catch(e) {
+      btn.disabled = false; btn.innerText = 'Try Again';
+      err.style.display = 'block';
+      var name = (e && e.name) || '';
+      if(name === 'NotAllowedError' || name === 'PermissionDeniedError'){
+        err.innerText = 'Permission denied. Please allow camera and microphone in your browser settings and try again.';
+      } else if(name === 'NotFoundError' || name === 'DevicesNotFoundError'){
+        err.innerText = 'No camera or microphone found on this device.';
+      } else {
+        err.innerText = 'Could not access devices: ' + (e && e.message || e);
+      }
+    }
+  }
+
   async function join(){
+    if(joined) return;
+    joined = true;
     try{
       await client.join(cfg.app_id, cfg.channel, cfg.token, cfg.uid || null);
       try{
         localTracks.audio = await AgoraRTC.createMicrophoneAudioTrack();
-      }catch(e){ post({type:'error', error:'Mic permission denied: '+e.message}); }
+      }catch(e){ post({type:'error', error:'Mic error: '+(e.message||e)}); }
       try{
         localTracks.video = await AgoraRTC.createCameraVideoTrack();
         var lc = document.getElementById('local');
         lc.innerHTML='';
         localTracks.video.play(lc);
-      }catch(e){ post({type:'error', error:'Camera permission denied: '+e.message}); }
+      }catch(e){ post({type:'error', error:'Camera error: '+(e.message||e)}); }
       var pub=[];
       if(localTracks.audio) pub.push(localTracks.audio);
       if(localTracks.video) pub.push(localTracks.video);
@@ -325,7 +367,10 @@ function buildCallHtml(t: { app_id: string; channel: string; token: string; uid:
     }catch(e){}
   };
 
-  window.addEventListener('load', join);
+  // Auto-trigger permission request on load
+  window.addEventListener('load', function(){
+    setTimeout(requestPerms, 300);
+  });
 </script>
 </body></html>`;
 }

@@ -21,7 +21,8 @@ export default function Login() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [gender, setGender] = useState<'boy' | 'girl'>('boy');
+  const [gender, setGender] = useState<'boy' | 'girl' | null>(null);
+  const [age, setAge] = useState('');
   const [error, setError] = useState('');
 
   // Handle Emergent Auth callback (#session_id)
@@ -75,9 +76,14 @@ export default function Login() {
     setError('');
     if (!name || !email || !password) { setError('All fields required'); return; }
     if (password.length < 6) { setError('Password must be 6+ characters'); return; }
+    if (!gender) { setError('Please select your gender (Boy or Girl)'); return; }
+    const ageNum = parseInt(age, 10);
+    if (!age || isNaN(ageNum)) { setError('Please enter your age'); return; }
+    if (ageNum < 18) { setError('You must be at least 18 years old to use Coin Connect'); return; }
+    if (ageNum > 120) { setError('Please enter a valid age'); return; }
     setLoading(true);
     try {
-      await register(name.trim(), email.trim().toLowerCase(), password, gender);
+      await register(name.trim(), email.trim().toLowerCase(), password, gender, ageNum);
       router.replace('/(tabs)/match');
     } catch (e: any) {
       setError(e.message || 'Registration failed');
@@ -104,7 +110,7 @@ export default function Login() {
                 <Ionicons name="flame" size={28} color="#fff" />
               </View>
               <Text style={s.formTitle}>{isReg ? 'Create account' : 'Welcome back'}</Text>
-              <Text style={s.formSub}>{isReg ? 'Get 50 free coins on signup' : 'Sign in to continue'}</Text>
+              <Text style={s.formSub}>{isReg ? '50 free coins on signup • 18+ only' : 'Sign in to continue'}</Text>
             </View>
 
             <View style={s.formCard}>
@@ -139,6 +145,15 @@ export default function Login() {
 
               {isReg ? (
                 <>
+                  <Text style={s.label}>Your age (must be 18 or older)</Text>
+                  <TextInput
+                    testID="reg-age-input"
+                    style={s.input} placeholder="e.g. 21"
+                    placeholderTextColor={C.textMuted}
+                    keyboardType="number-pad" maxLength={3}
+                    value={age} onChangeText={(t) => setAge(t.replace(/[^0-9]/g, ''))}
+                  />
+
                   <Text style={s.label}>I am a</Text>
                   <View style={s.genderRow}>
                     <TouchableOpacity
