@@ -12,6 +12,7 @@ export default function Profile() {
   const { user, logout } = useAuth();
   const [beauty, setBeauty] = React.useState(false);
   const isGirl = (user?.gender || '').toLowerCase() === 'girl';
+  const isAdmin = !!user?.is_admin;
 
   const confirmLogout = () => {
     if (Platform.OS === 'web') {
@@ -135,6 +136,28 @@ export default function Profile() {
             thumbColor={beauty ? C.pink : '#fff'}
           />
         </View>
+
+        {/* About */}
+        <Text style={s.sectionLabel}>ACCOUNT</Text>
+        <TouchableOpacity style={s.row} testID="row-change-password" onPress={() => router.push('/change-password')}>
+          <View style={[s.rowIcon, { backgroundColor: C.blueBg }]}>
+            <Ionicons name="key" size={18} color={C.blue} />
+          </View>
+          <Text style={s.rowText}>Change Password</Text>
+          <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+        </TouchableOpacity>
+        {isAdmin ? (
+          <TouchableOpacity style={[s.row, { borderColor: C.pink, backgroundColor: C.pinkBg }]} testID="row-admin" onPress={() => router.push('/admin')}>
+            <View style={[s.rowIcon, { backgroundColor: C.pink }]}>
+              <Ionicons name="shield-checkmark" size={18} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.rowText, { color: C.pink }]}>Admin Panel</Text>
+              <Text style={s.rowSub}>Manage payouts & users</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.pink} />
+          </TouchableOpacity>
+        ) : null}
 
         {/* About */}
         <Text style={s.sectionLabel}>ABOUT</Text>

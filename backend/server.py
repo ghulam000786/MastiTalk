@@ -32,6 +32,8 @@ AGORA_APP_CERTIFICATE = os.environ['AGORA_APP_CERTIFICATE']
 RAZORPAY_KEY_ID = os.environ['RAZORPAY_KEY_ID']
 RAZORPAY_KEY_SECRET = os.environ['RAZORPAY_KEY_SECRET']
 RAZORPAY_PAYMENT_LINK = os.environ.get('RAZORPAY_PAYMENT_LINK', '')
+ADMIN_EMAILS = {e.strip().lower() for e in (os.environ.get('ADMIN_EMAILS') or '').split(',') if e.strip()}
+ADMIN_DEFAULT_PASSWORD = os.environ.get('ADMIN_DEFAULT_PASSWORD', '')
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
@@ -98,6 +100,14 @@ class PayoutRequestIn(BaseModel):
     ifsc: Optional[str] = None
     bank_name: Optional[str] = None
 
+class AdminPayoutActionIn(BaseModel):
+    note: Optional[str] = ""
+    transaction_ref: Optional[str] = ""
+
+class ChangePasswordIn(BaseModel):
+    current_password: Optional[str] = ""
+    new_password: str
+
 # ---------- Data ----------
 COIN_PACKS = {
     "pack_100": {"id": "pack_100", "coins": 100, "price_inr": 99, "label": "Starter"},
@@ -159,6 +169,12 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
+async def get_admin_user(user: dict = Depends(get_current_user)) -> dict:
+    email = (user.get("email") or "").lower()
+    if email not in ADMIN_EMAILS and not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -166,6 +182,7 @@ def public_user(u: dict) -> dict:
     age = u.get("age")
     gender = u.get("gender")
     onboarded = bool(gender in ("boy", "girl") and isinstance(age, int) and age >= 18)
+    is_admin = (u.get("email") or "").lower() in ADMIN_EMAILS or bool(u.get("is_admin"))
     return {
         "id": u["id"], "email": u["email"], "name": u["name"],
         "picture": u.get("picture"), "coins": u.get("coins", 0),
@@ -173,6 +190,7 @@ def public_user(u: dict) -> dict:
         "gender": gender or None,
         "age": age,
         "onboarded": onboarded,
+        "is_admin": is_admin,
     }
 
 def conversation_id(a: str, b: str) -> str:
@@ -811,6 +829,135 @@ async def payout_history(user: dict = Depends(get_current_user)):
     cursor = db.payouts.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).limit(100)
     items = await cursor.to_list(length=100)
     return {"payouts": items}
+
+# ---------- Account: change own password ----------
+@api.post("/account/change-password")
+async def change_password(body: ChangePasswordIn, user: dict = Depends(get_current_user)):
+    new_pw = (body.new_password or "").strip()
+    if len(new_pw) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
+    full = await db.users.find_one({"id": user["id"]})
+    has_pw = bool(full.get("password_hash"))
+    if has_pw:
+        if not body.current_password or not verify_password(body.current_password, full.get("password_hash", "")):
+            raise HTTPException(status_code=400, detail="Current password is incorrect")
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"password_hash": hash_password(new_pw), "password_updated_at": now_iso()}},
+    )
+    return {"success": True}
+
+# ---------- Admin: payouts management ----------
+@api.get("/admin/me")
+async def admin_me(admin: dict = Depends(get_admin_user)):
+    return {"user": public_user(admin)}
+
+@api.get("/admin/stats")
+async def admin_stats(admin: dict = Depends(get_admin_user)):
+    pipeline = [
+        {"$group": {
+            "_id": "$status",
+            "count": {"$sum": 1},
+            "credits": {"$sum": "$credits"},
+            "inr": {"$sum": "$inr_amount"},
+        }}
+    ]
+    rows = await db.payouts.aggregate(pipeline).to_list(length=20)
+    by_status = {r["_id"]: {"count": r["count"], "credits": r["credits"], "inr": r["inr"]} for r in rows}
+    total_users = await db.users.count_documents({})
+    girls = await db.users.count_documents({"gender": "girl"})
+    boys = await db.users.count_documents({"gender": "boy"})
+    return {
+        "payouts_by_status": by_status,
+        "users": {"total": total_users, "girls": girls, "boys": boys},
+    }
+
+@api.get("/admin/payouts")
+async def admin_list_payouts(
+    status: Optional[str] = None,
+    limit: int = 100,
+    admin: dict = Depends(get_admin_user),
+):
+    q: dict = {}
+    if status and status != "all":
+        q["status"] = status
+    cursor = db.payouts.find(q, {"_id": 0}).sort("created_at", -1).limit(min(max(limit, 1), 500))
+    items = await cursor.to_list(length=500)
+    return {"payouts": items}
+
+async def _set_payout_status(payout_id: str, new_status: str, admin: dict, extra: Optional[dict] = None, refund: bool = False):
+    payout = await db.payouts.find_one({"id": payout_id}, {"_id": 0})
+    if not payout:
+        raise HTTPException(status_code=404, detail="Payout not found")
+    if payout["status"] in ("paid", "rejected"):
+        raise HTTPException(status_code=400, detail=f"Payout is already {payout['status']}")
+
+    update = {
+        "status": new_status,
+        "reviewed_at": now_iso(),
+        "reviewed_by": admin.get("email"),
+    }
+    if extra:
+        update.update(extra)
+    await db.payouts.update_one({"id": payout_id}, {"$set": update})
+
+    if refund:
+        await db.users.update_one({"id": payout["user_id"]}, {"$inc": {"credits": payout["credits"]}})
+        await db.transactions.insert_one({
+            "id": str(uuid.uuid4()), "user_id": payout["user_id"], "type": "refund",
+            "credits": payout["credits"], "source": "payout_rejected", "payout_id": payout_id,
+            "created_at": now_iso(),
+        })
+
+    updated = await db.payouts.find_one({"id": payout_id}, {"_id": 0})
+    return {"success": True, "payout": updated}
+
+@api.post("/admin/payouts/{payout_id}/approve")
+async def admin_approve(payout_id: str, body: AdminPayoutActionIn, admin: dict = Depends(get_admin_user)):
+    return await _set_payout_status(payout_id, "approved", admin, {"admin_note": (body.note or "")[:500]})
+
+@api.post("/admin/payouts/{payout_id}/reject")
+async def admin_reject(payout_id: str, body: AdminPayoutActionIn, admin: dict = Depends(get_admin_user)):
+    return await _set_payout_status(payout_id, "rejected", admin, {"admin_note": (body.note or "")[:500]}, refund=True)
+
+@api.post("/admin/payouts/{payout_id}/mark-paid")
+async def admin_mark_paid(payout_id: str, body: AdminPayoutActionIn, admin: dict = Depends(get_admin_user)):
+    extra = {
+        "admin_note": (body.note or "")[:500],
+        "transaction_ref": (body.transaction_ref or "")[:200],
+        "paid_at": now_iso(),
+    }
+    return await _set_payout_status(payout_id, "paid", admin, extra)
+
+# ---------- Startup: seed admin ----------
+async def ensure_admin_seed():
+    if not ADMIN_EMAILS or not ADMIN_DEFAULT_PASSWORD:
+        return
+    for email in ADMIN_EMAILS:
+        existing = await db.users.find_one({"email": email})
+        if not existing:
+            uid = str(uuid.uuid4())
+            await db.users.insert_one({
+                "id": uid, "email": email, "name": "Admin",
+                "password_hash": hash_password(ADMIN_DEFAULT_PASSWORD),
+                "coins": 0, "credits": 0,
+                "gender": None, "age": None,
+                "is_admin": True, "provider": "password",
+                "created_at": now_iso(),
+            })
+            logger.info(f"Seeded admin user: {email}")
+        else:
+            updates: dict = {"is_admin": True}
+            if not existing.get("password_hash"):
+                updates["password_hash"] = hash_password(ADMIN_DEFAULT_PASSWORD)
+            await db.users.update_one({"id": existing["id"]}, {"$set": updates})
+
+@app.on_event("startup")
+async def _startup():
+    try:
+        await ensure_admin_seed()
+    except Exception:
+        logger.exception("ensure_admin_seed failed")
 
 # ---------- Mount ----------
 app.include_router(api)

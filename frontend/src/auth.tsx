@@ -12,6 +12,7 @@ export type User = {
   gender?: string | null;
   age?: number | null;
   onboarded?: boolean;
+  is_admin?: boolean;
 };
 
 type AuthCtx = {
