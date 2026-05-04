@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "extra": {
       "eas": {
-        "projectId": "rehan-ghulam-s-org/mastitalk"
+        "projectId": "14c30663-44cc-4515-9add-744c430a031a"
       }
     },
     "android": {
