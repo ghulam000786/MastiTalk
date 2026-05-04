@@ -26,17 +26,18 @@ jobs:
           cd frontend
           npm install
           
-      - name: Create local.properties
-        run: |
-          cd frontend
-          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-          
       - name: Generate Android project
         run: |
           cd frontend
           EXPO_NO_DOTENV=1 npx expo run:android --no-install --no-bundler
         env:
           CI: 1
+        continue-on-error: true
+          
+      - name: Create local.properties
+        run: |
+          cd frontend/android
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
           
       - name: Build APK
         run: |
