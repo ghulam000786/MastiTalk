@@ -124,7 +124,7 @@ export default function Profile() {
           <Text style={s.rowText}>Terms of Service</Text>
           <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
         </TouchableOpacity>
-        <TouchableOpacity style={s.row} testID="row-community" onPress={() => router.push('/blocked')}>
+        <TouchableOpacity style={s.row} testID="row-blocked" onPress={() => router.push('/blocked')}>
           <View style={[s.rowIcon, { backgroundColor: '#DCFCE7' }]}>
             <Ionicons name="ban" size={18} color={C.green} />
           </View>

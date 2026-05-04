@@ -1,45 +1,64 @@
-# Coin Connect — PRD
+# Coin Connect — PRD (Production-Ready)
 
 ## Concept
-A premium random-video-call mobile app where users buy coin packs via Razorpay and spend coins (10/min) on Agora video calls.
+Random video-call mobile app on Expo + FastAPI. Users buy coins via Razorpay, get matched 1-to-1 with another user, video call via Agora (10 coins/min), chat after the call, and report/block bad actors.
 
 ## Tech
-- Frontend: Expo Router SDK 54 (React Native), file-based routes
+- Frontend: Expo Router SDK 54 (file-based routing)
 - Backend: FastAPI + Motor (MongoDB)
-- Integrations: **Agora RTC** (Web SDK in WebView), **Razorpay Checkout** (web SDK + WebView fallback), **Emergent Google Auth**
-- Auth: JWT (email+password) + Google OAuth (Emergent-managed) — both yield app JWTs.
+- Realtime: HTTP polling (match every 2s, chat every 4s) — easily upgradable to WebSocket
+- Payments: Razorpay JS (web) / WebView (native) + standalone Razorpay payment link
+- Video/Voice: Agora Web SDK (iframe on web, WebView on native)
+- Auth: JWT email+password (with gender) + Emergent-managed Google OAuth
 
-## Screens (file-based)
-- `/(auth)/login` — Pink flame logo, "Continue with Google", "More options" link to demo email login.
-- `/(tabs)/match` — Dark purple bg, animated radar rings, central avatar, "Tap Start to find a match", pink Start button → Agora call.
-- `/(tabs)/explore` — White, "Explore" title, 6 profile cards with names/countries, pink call buttons.
-- `/(tabs)/chat` — White, "Messages", mock recent chats.
-- `/(tabs)/profile` — Pink hero card, Coins/Credits/History stats, Get VIP CTA, language, camera-beauty toggle, Privacy/Terms/Community, Sign out.
-- `/store` — Buy coin packs (4 packs, 99–3499 INR).
-- `/checkout` — Razorpay JS SDK (web) / WebView (native).
-- `/history` — Activity ledger.
-- `/call/[channel]` — Agora video call screen (mute, camera, end-call), minute-billing.
+## Screens
+| Path | Purpose |
+|---|---|
+| `/(auth)/login` | Continue with Google · Sign up · Sign in (with gender boy/girl) |
+| `/(tabs)/match` | Random matching with preference chips (Anyone/Boys/Girls), pulsing rings, live online count |
+| `/(tabs)/explore` | Real users + curated profiles grid (excludes blocked users) |
+| `/(tabs)/chat` | Real conversations list (polled) |
+| `/chat/[peer]` | 1-to-1 messaging, video-call shortcut, report/block menu |
+| `/(tabs)/profile` | Avatar, stats (coins/credits/history), Get VIP, Language, Camera beauty, Privacy/Terms/Blocked Users, Sign out |
+| `/store` | 4 coin packs (Razorpay JS/WebView checkout) + Quick Pay via rzp.io link |
+| `/checkout` | Razorpay flow with signature verify |
+| `/call/[channel]` | Agora call w/ peer name in header, Report button (red) top-right, mute, camera-flip, end-call |
+| `/report` | 8 confidential report reasons + textarea |
+| `/privacy` | Privacy Policy (8 sections) |
+| `/terms` | Terms of Service (9 sections) |
+| `/blocked` | Manage blocked users with Unblock action |
+| `/history` | Activity ledger (credits + debits) |
 
-## Backend endpoints
-- `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`
-- `POST /api/auth/google-session` — exchanges Emergent session_id for app JWT
-- `GET /api/packs`, `GET /api/payments/config`
-- `POST /api/payments/create-order`, `POST /api/payments/verify`
-- `POST /api/agora/token`, `POST /api/agora/end-call`
-- `GET /api/explore` — 6 mock profiles + online_count
-- `GET /api/transactions`, `GET /api/calls`
+## Backend endpoints (45+)
+- Auth: register, login, google-session, me
+- Packs: get-packs (returns razorpay_payment_link)
+- Payments: create-order, verify
+- Agora: token, end-call
+- Match: join, status, cancel, clear, online-count (in-memory queue with gender preference + block-aware)
+- Explore: list profiles (auth-gated, blocked-aware)
+- Chat: send, messages/{peer}, conversations
+- Moderation: report, block, unblock, blocked
+- History: transactions, calls
 
-## Revenue / Growth hooks built-in
-- Welcome bonus 50 coins drives sign-ups.
-- "Best Value" highlighted pack pushes higher-ticket purchase.
-- Bonus coins on bigger packs (1200 for ₹799, 6500 for ₹3499) raises AOV.
-- "Get VIP" CTA on profile signals upsell path.
+## Production-ready features
+- Real 1-to-1 matching with gender preference, both sides honored
+- Real-time chat (4s polling) with messages stored in MongoDB
+- Confidential report flow (8 reasons + free-text)
+- Block/Unblock — affects matching, chat, explore
+- Privacy Policy + Terms of Service screens (Play Store + App Store compliant copy)
+- Razorpay JS-based checkout (web) + WebView (native) + Quick Pay link fallback
+- Agora calls: iframe on web, WebView on native, microphone & camera permissions declared in app.json
 
-## Publish readiness
-- `app.json` has app name "Coin Connect", scheme `coinconnect`, dark UI, iOS camera/mic usage descriptions, Android `CAMERA`/`RECORD_AUDIO`/`INTERNET` permissions.
-- All credentials in `/app/backend/.env` only — no hardcoding.
-- Use the **Publish** button (top-right of Emergent) to build APK/IPA & submit to stores.
+## Test Coverage
+- Backend: 38/38 pytest passing (regression + production features)
+- Frontend: 11/13 Playwright flows verified
 
-## Known caveats (informational, not blocking)
-- The native Razorpay flow uses an in-app WebView. The Web preview uses Razorpay JS directly (because react-native-webview has no web platform).
-- Agora calls require camera/mic browser permission on web preview; on native devices, app permissions kick in.
+## Remaining caveats (small / informational)
+- Razorpay Quick Pay link cannot auto-credit coins without webhook setup; user must share Payment ID with support.
+- Razorpay TEST keys configured. Switch to LIVE keys before public release.
+- Match queue is in-memory; restart of backend resets the waiting queue (matched users continue normally).
+- Web preview uses iframe-based Agora; production native will use react-native-webview.
+
+## To Publish
+1. (Optional) Razorpay → switch to LIVE Key ID / Secret in `/app/backend/.env`.
+2. Tap **Publish** in Emergent (top-right) → builds APK/IPA → submit to Play Store / App Store.

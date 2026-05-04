@@ -107,6 +107,18 @@ export default function Store() {
             Payments are secured by Razorpay. Test card: 4111 1111 1111 1111, any CVV, future expiry.
           </Text>
         </View>
+
+        {paymentLink ? (
+          <TouchableOpacity
+            testID="razorpay-quickpay-btn"
+            style={s.quickPay}
+            onPress={openPaymentLink}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="flash" size={18} color="#fff" />
+            <Text style={s.quickPayText}>Quick Pay via Razorpay link</Text>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
