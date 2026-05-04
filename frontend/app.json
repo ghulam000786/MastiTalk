@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Coin Connect",
-    "slug": "coin-connect",
+    "name": "MastiTalk",
+    "slug": "mastitalk",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "coinconnect",
+    "scheme": "mastitalk",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
@@ -18,7 +18,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#060A14"
+        "backgroundColor": "#000414"
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
@@ -42,33 +42,25 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#060A14"
+          "backgroundColor": "#000414"
         }
       ],
       "expo-web-browser",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "extraMavenRepos": [
+              "https://maven.google.com",
+              "https://jitpack.io"
+            ]
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
     }
   }
 }
-
-{
-     "expo": {
-       "name": "MastiTalk",
-       "plugins": [
-         [
-           "expo-build-properties",
-           {
-             "android": {
-               "extraMavenRepos": [
-                 "https://maven.google.com",
-                 "https://jitpack.io"
-               ]
-             }
-           }
-         ]
-       ]
-     }
-   }
