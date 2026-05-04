@@ -110,25 +110,25 @@ export default function Profile() {
 
         {/* About */}
         <Text style={s.sectionLabel}>ABOUT</Text>
-        <TouchableOpacity style={s.row} testID="row-privacy">
+        <TouchableOpacity style={s.row} testID="row-privacy" onPress={() => router.push('/privacy')}>
           <View style={[s.rowIcon, { backgroundColor: C.purpleBg }]}>
             <Ionicons name="lock-closed" size={18} color={C.purple} />
           </View>
           <Text style={s.rowText}>Privacy Policy</Text>
           <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
         </TouchableOpacity>
-        <TouchableOpacity style={s.row} testID="row-terms">
+        <TouchableOpacity style={s.row} testID="row-terms" onPress={() => router.push('/terms')}>
           <View style={[s.rowIcon, { backgroundColor: C.yellowBg }]}>
             <Ionicons name="document-text" size={18} color={C.yellow} />
           </View>
           <Text style={s.rowText}>Terms of Service</Text>
           <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
         </TouchableOpacity>
-        <TouchableOpacity style={s.row} testID="row-community">
+        <TouchableOpacity style={s.row} testID="row-community" onPress={() => router.push('/blocked')}>
           <View style={[s.rowIcon, { backgroundColor: '#DCFCE7' }]}>
-            <Ionicons name="shield-checkmark" size={18} color={C.green} />
+            <Ionicons name="ban" size={18} color={C.green} />
           </View>
-          <Text style={s.rowText}>Community & Privacy</Text>
+          <Text style={s.rowText}>Blocked users</Text>
           <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
         </TouchableOpacity>
 

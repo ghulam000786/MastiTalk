@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import asyncio
 import logging
 import uuid
 import time
@@ -10,7 +11,7 @@ import hmac
 import hashlib
 from pathlib import Path
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, timezone
 
 import bcrypt
@@ -23,7 +24,6 @@ from agora_token_builder import RtcTokenBuilder
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# Config
 MONGO_URL = os.environ['MONGO_URL']
 DB_NAME = os.environ['DB_NAME']
 JWT_SECRET = os.environ['JWT_SECRET']
@@ -31,13 +31,12 @@ AGORA_APP_ID = os.environ['AGORA_APP_ID']
 AGORA_APP_CERTIFICATE = os.environ['AGORA_APP_CERTIFICATE']
 RAZORPAY_KEY_ID = os.environ['RAZORPAY_KEY_ID']
 RAZORPAY_KEY_SECRET = os.environ['RAZORPAY_KEY_SECRET']
+RAZORPAY_PAYMENT_LINK = os.environ.get('RAZORPAY_PAYMENT_LINK', '')
 
-# Connections
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
 razor_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
 
-# FastAPI app
 app = FastAPI(title="Coin Connect API")
 api = APIRouter(prefix="/api")
 
@@ -70,7 +69,22 @@ class VerifyPaymentIn(BaseModel):
     razorpay_payment_id: str
     razorpay_signature: str
 
-# ---------- Coin Packs ----------
+class MatchJoinIn(BaseModel):
+    preference: Optional[str] = "any"  # "boy", "girl", "any"
+
+class SendMessageIn(BaseModel):
+    to_user_id: str
+    text: str
+
+class ReportIn(BaseModel):
+    user_id: str
+    reason: str
+    context: Optional[str] = ""
+
+class BlockIn(BaseModel):
+    user_id: str
+
+# ---------- Data ----------
 COIN_PACKS = {
     "pack_100": {"id": "pack_100", "coins": 100, "price_inr": 99, "label": "Starter"},
     "pack_500": {"id": "pack_500", "coins": 550, "price_inr": 449, "label": "Popular", "badge": "Best Value"},
@@ -79,7 +93,6 @@ COIN_PACKS = {
 }
 CALL_COST_PER_MIN = 10
 
-# ---------- Explore profiles (mock) ----------
 EXPLORE_PROFILES = [
     {"id": "p_priya", "name": "Priya", "country": "India", "flag": "🇮🇳", "online": False,
      "photo": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&q=80"},
@@ -94,6 +107,11 @@ EXPLORE_PROFILES = [
     {"id": "p_zoe", "name": "Zoe", "country": "USA", "flag": "🇺🇸", "online": False,
      "photo": "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=400&q=80"},
 ]
+
+# In-memory matching queue. Structure: {user_id: {gender, preference, ts, state, peer_id, channel}}
+# For production scale, swap with Redis.
+match_queue: dict = {}
+match_lock = asyncio.Lock()
 
 # ---------- Helpers ----------
 def hash_password(pw: str) -> str:
@@ -129,16 +147,15 @@ def now_iso() -> str:
 
 def public_user(u: dict) -> dict:
     return {
-        "id": u["id"],
-        "email": u["email"],
-        "name": u["name"],
-        "picture": u.get("picture"),
-        "coins": u.get("coins", 0),
-        "credits": u.get("credits", 0),
-        "gender": u.get("gender", "boy"),
+        "id": u["id"], "email": u["email"], "name": u["name"],
+        "picture": u.get("picture"), "coins": u.get("coins", 0),
+        "credits": u.get("credits", 0), "gender": u.get("gender", "boy"),
     }
 
-# ---------- Routes ----------
+def conversation_id(a: str, b: str) -> str:
+    return "_".join(sorted([a, b]))
+
+# ---------- Auth ----------
 @api.get("/")
 async def root():
     return {"message": "Coin Connect API", "status": "ok"}
@@ -168,7 +185,6 @@ async def login(body: LoginIn):
 
 @api.post("/auth/google-session")
 async def google_session(body: GoogleSessionIn):
-    """Exchange an Emergent Auth session_id for our app JWT."""
     try:
         async with httpx.AsyncClient(timeout=15.0) as h:
             r = await h.get(
@@ -201,9 +217,7 @@ async def google_session(body: GoogleSessionIn):
         await db.users.insert_one(user_doc)
         user = user_doc
     else:
-        await db.users.update_one(
-            {"id": user["id"]}, {"$set": {"name": name, "picture": picture}}
-        )
+        await db.users.update_one({"id": user["id"]}, {"$set": {"name": name, "picture": picture}})
         user["name"] = name; user["picture"] = picture
 
     return {"token": create_jwt(user["id"]), "user": public_user(user)}
@@ -212,16 +226,16 @@ async def google_session(body: GoogleSessionIn):
 async def me(user: dict = Depends(get_current_user)):
     return {"user": public_user(user)}
 
-# ---------- Coin Packs ----------
+# ---------- Packs ----------
 @api.get("/packs")
 async def get_packs():
-    return {"packs": list(COIN_PACKS.values()), "call_cost_per_min": CALL_COST_PER_MIN}
+    return {
+        "packs": list(COIN_PACKS.values()),
+        "call_cost_per_min": CALL_COST_PER_MIN,
+        "razorpay_payment_link": RAZORPAY_PAYMENT_LINK,
+    }
 
 # ---------- Razorpay ----------
-@api.get("/payments/config")
-async def payments_config():
-    return {"razorpay_key_id": RAZORPAY_KEY_ID}
-
 @api.post("/payments/create-order")
 async def create_order(body: CreateOrderIn, user: dict = Depends(get_current_user)):
     pack = COIN_PACKS.get(body.pack_id)
@@ -257,10 +271,7 @@ async def verify_payment(body: VerifyPaymentIn, user: dict = Depends(get_current
         hashlib.sha256,
     ).hexdigest()
     if not hmac.compare_digest(generated_sig, body.razorpay_signature):
-        await db.orders.update_one(
-            {"order_id": body.razorpay_order_id},
-            {"$set": {"status": "signature_failed"}},
-        )
+        await db.orders.update_one({"order_id": body.razorpay_order_id}, {"$set": {"status": "signature_failed"}})
         raise HTTPException(status_code=400, detail="Invalid payment signature")
     order = await db.orders.find_one({"order_id": body.razorpay_order_id}, {"_id": 0})
     if not order:
@@ -295,9 +306,8 @@ async def agora_token(body: TokenRequest, user: dict = Depends(get_current_user)
         raise HTTPException(status_code=400, detail="Channel name required")
     uid = body.uid if body.uid else 0
     expire_ts = int(time.time()) + 3600
-    role = 1
     token = RtcTokenBuilder.buildTokenWithUid(
-        AGORA_APP_ID, AGORA_APP_CERTIFICATE, channel, uid, role, expire_ts,
+        AGORA_APP_ID, AGORA_APP_CERTIFICATE, channel, uid, 1, expire_ts,
     )
     call_id = str(uuid.uuid4())
     await db.calls.insert_one({
@@ -334,17 +344,278 @@ async def end_call(data: dict, user: dict = Depends(get_current_user)):
         })
     await db.calls.update_one(
         {"id": call_id},
-        {"$set": {"duration_minutes": minutes, "coins_spent": cost,
-                  "ended_at": now_iso(), "status": "ended"}},
+        {"$set": {"duration_minutes": minutes, "coins_spent": cost, "ended_at": now_iso(), "status": "ended"}},
     )
     updated = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password_hash": 0})
     return {"success": True, "coins_spent": cost, "balance": updated["coins"]}
 
-# ---------- Explore / Discover ----------
+# ---------- Real-time Random Matching ----------
+# Users enter queue; worker-free pairing happens synchronously on each join.
+@api.post("/match/join")
+async def match_join(body: MatchJoinIn, user: dict = Depends(get_current_user)):
+    if user.get("coins", 0) < CALL_COST_PER_MIN:
+        raise HTTPException(status_code=402, detail="Insufficient coins to start a call")
+
+    # Get blocks both directions
+    blocked_by_me = await db.blocks.find({"user_id": user["id"]}, {"_id": 0, "blocked_id": 1}).to_list(200)
+    block_set = {b["blocked_id"] for b in blocked_by_me}
+    blocked_me = await db.blocks.find({"blocked_id": user["id"]}, {"_id": 0, "user_id": 1}).to_list(200)
+    block_set.update(b["user_id"] for b in blocked_me)
+
+    user_gender = (user.get("gender") or "boy").lower()
+    pref = (body.preference or "any").lower()
+
+    async with match_lock:
+        # Clean up stale entries (>60s old, non-matched)
+        now = time.time()
+        stale = [uid for uid, v in match_queue.items()
+                 if v.get("state") == "waiting" and now - v.get("ts", now) > 60]
+        for uid in stale:
+            match_queue.pop(uid, None)
+
+        # If user already has a pending entry, return current state
+        cur = match_queue.get(user["id"])
+        if cur and cur.get("state") == "matched":
+            return {"status": "matched", "channel": cur["channel"], "peer": cur.get("peer")}
+        if cur and cur.get("state") == "waiting":
+            pass  # will try pairing below
+
+        # Try pair with another waiting user
+        pair = None
+        for other_id, v in list(match_queue.items()):
+            if other_id == user["id"]:
+                continue
+            if v.get("state") != "waiting":
+                continue
+            if other_id in block_set:
+                continue
+            other_gender = (v.get("gender") or "boy").lower()
+            other_pref = (v.get("preference") or "any").lower()
+            # Preference check both sides
+            if pref != "any" and other_gender != pref:
+                continue
+            if other_pref != "any" and user_gender != other_pref:
+                continue
+            pair = (other_id, v)
+            break
+
+        if pair:
+            other_id, other_v = pair
+            channel = f"ccm_{uuid.uuid4().hex[:12]}"
+            peer_me = await db.users.find_one({"id": other_id}, {"_id": 0, "password_hash": 0})
+            peer_them = {"id": user["id"], "name": user["name"], "picture": user.get("picture"),
+                         "gender": user_gender}
+            peer_me_pub = {"id": peer_me["id"], "name": peer_me["name"],
+                           "picture": peer_me.get("picture"), "gender": peer_me.get("gender", "boy")} if peer_me else None
+
+            match_queue[user["id"]] = {
+                "state": "matched", "channel": channel, "peer": peer_me_pub,
+                "gender": user_gender, "preference": pref, "ts": now,
+            }
+            match_queue[other_id] = {
+                "state": "matched", "channel": channel, "peer": peer_them,
+                "gender": other_v.get("gender"), "preference": other_v.get("preference"), "ts": now,
+            }
+            return {"status": "matched", "channel": channel, "peer": peer_me_pub}
+
+        # No pair → enter queue
+        match_queue[user["id"]] = {
+            "state": "waiting", "gender": user_gender, "preference": pref, "ts": now,
+        }
+    return {"status": "waiting"}
+
+@api.get("/match/status")
+async def match_status(user: dict = Depends(get_current_user)):
+    entry = match_queue.get(user["id"])
+    if not entry:
+        return {"status": "idle"}
+    if entry.get("state") == "matched":
+        return {"status": "matched", "channel": entry["channel"], "peer": entry.get("peer")}
+    return {"status": "waiting"}
+
+@api.post("/match/cancel")
+async def match_cancel(user: dict = Depends(get_current_user)):
+    async with match_lock:
+        match_queue.pop(user["id"], None)
+    return {"status": "cancelled"}
+
+@api.post("/match/clear")
+async def match_clear(user: dict = Depends(get_current_user)):
+    """Clear my matched entry after call ends."""
+    async with match_lock:
+        entry = match_queue.get(user["id"])
+        if entry and entry.get("state") == "matched":
+            match_queue.pop(user["id"], None)
+    return {"status": "cleared"}
+
+@api.get("/match/online-count")
+async def match_online_count():
+    # Users active in the last 10 minutes + waiting queue
+    ten_min_ago = datetime.now(timezone.utc).timestamp() - 600
+    waiting = sum(1 for v in match_queue.values() if v.get("state") == "waiting")
+    return {"waiting": waiting, "online_estimate": max(waiting * 2, 3)}
+
+# ---------- Explore ----------
 @api.get("/explore")
-async def explore():
-    online = sum(1 for p in EXPLORE_PROFILES if p["online"])
-    return {"profiles": EXPLORE_PROFILES, "online_count": online}
+async def explore(user: dict = Depends(get_current_user)):
+    # Pull real recent users (other than self) + fallback to mock
+    blocked = await db.blocks.find({"user_id": user["id"]}, {"_id": 0, "blocked_id": 1}).to_list(500)
+    block_set = {b["blocked_id"] for b in blocked}
+
+    cursor = db.users.find(
+        {"id": {"$ne": user["id"], "$nin": list(block_set)}},
+        {"_id": 0, "password_hash": 0},
+    ).sort("created_at", -1).limit(20)
+    real_users = await cursor.to_list(length=20)
+    real = [{
+        "id": u["id"], "name": u["name"],
+        "country": u.get("country", "—"), "flag": "🌐",
+        "online": True,  # treated online for demo
+        "photo": u.get("picture") or f"https://ui-avatars.com/api/?name={u['name']}&background=FF2D7B&color=fff&size=400",
+        "real": True,
+    } for u in real_users]
+
+    combined = real + EXPLORE_PROFILES
+    online = sum(1 for p in combined if p.get("online"))
+    return {"profiles": combined[:20], "online_count": online}
+
+# ---------- Chat ----------
+@api.get("/chat/conversations")
+async def chat_conversations(user: dict = Depends(get_current_user)):
+    # Get latest message per conversation where user is participant
+    pipeline = [
+        {"$match": {"participants": user["id"]}},
+        {"$sort": {"created_at": -1}},
+        {"$group": {
+            "_id": "$conversation_id",
+            "last_text": {"$first": "$text"},
+            "last_sender": {"$first": "$from_user_id"},
+            "last_at": {"$first": "$created_at"},
+            "participants": {"$first": "$participants"},
+        }},
+        {"$sort": {"last_at": -1}},
+        {"$limit": 50},
+    ]
+    msgs = await db.messages.aggregate(pipeline).to_list(length=50)
+    result = []
+    for m in msgs:
+        peer_id = next((p for p in m["participants"] if p != user["id"]), None)
+        if not peer_id:
+            continue
+        peer = await db.users.find_one({"id": peer_id}, {"_id": 0, "id": 1, "name": 1, "picture": 1})
+        if not peer:
+            continue
+        result.append({
+            "conversation_id": m["_id"],
+            "peer": {
+                "id": peer["id"], "name": peer["name"],
+                "picture": peer.get("picture") or f"https://ui-avatars.com/api/?name={peer['name']}&background=FF2D7B&color=fff&size=200",
+            },
+            "last_text": m["last_text"],
+            "last_at": m["last_at"],
+            "is_mine": m["last_sender"] == user["id"],
+        })
+    return {"conversations": result}
+
+@api.get("/chat/messages/{peer_id}")
+async def chat_messages(peer_id: str, user: dict = Depends(get_current_user)):
+    conv_id = conversation_id(user["id"], peer_id)
+    cursor = db.messages.find({"conversation_id": conv_id}, {"_id": 0}).sort("created_at", 1).limit(200)
+    items = await cursor.to_list(length=200)
+    peer = await db.users.find_one({"id": peer_id}, {"_id": 0, "id": 1, "name": 1, "picture": 1, "gender": 1})
+    if not peer:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {
+        "messages": items,
+        "peer": {
+            "id": peer["id"], "name": peer["name"],
+            "picture": peer.get("picture") or f"https://ui-avatars.com/api/?name={peer['name']}&background=FF2D7B&color=fff&size=200",
+        },
+    }
+
+@api.post("/chat/send")
+async def chat_send(body: SendMessageIn, user: dict = Depends(get_current_user)):
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    if len(text) > 2000:
+        raise HTTPException(status_code=400, detail="Message too long")
+    if body.to_user_id == user["id"]:
+        raise HTTPException(status_code=400, detail="Cannot message yourself")
+    # Check blocks
+    blocked = await db.blocks.find_one({
+        "$or": [
+            {"user_id": user["id"], "blocked_id": body.to_user_id},
+            {"user_id": body.to_user_id, "blocked_id": user["id"]},
+        ]
+    })
+    if blocked:
+        raise HTTPException(status_code=403, detail="Cannot message this user")
+    peer = await db.users.find_one({"id": body.to_user_id}, {"_id": 0})
+    if not peer:
+        raise HTTPException(status_code=404, detail="User not found")
+    msg = {
+        "id": str(uuid.uuid4()),
+        "conversation_id": conversation_id(user["id"], body.to_user_id),
+        "participants": sorted([user["id"], body.to_user_id]),
+        "from_user_id": user["id"],
+        "to_user_id": body.to_user_id,
+        "text": text,
+        "created_at": now_iso(),
+    }
+    await db.messages.insert_one(msg)
+    msg.pop("_id", None)
+    return {"message": msg}
+
+# ---------- Report / Block ----------
+@api.post("/report")
+async def report_user(body: ReportIn, user: dict = Depends(get_current_user)):
+    if body.user_id == user["id"]:
+        raise HTTPException(status_code=400, detail="Cannot report yourself")
+    await db.reports.insert_one({
+        "id": str(uuid.uuid4()),
+        "reporter_id": user["id"],
+        "reported_id": body.user_id,
+        "reason": (body.reason or "").strip()[:200] or "unspecified",
+        "context": (body.context or "").strip()[:500],
+        "created_at": now_iso(),
+        "status": "open",
+    })
+    return {"success": True}
+
+@api.post("/block")
+async def block_user(body: BlockIn, user: dict = Depends(get_current_user)):
+    if body.user_id == user["id"]:
+        raise HTTPException(status_code=400, detail="Cannot block yourself")
+    existing = await db.blocks.find_one({"user_id": user["id"], "blocked_id": body.user_id})
+    if existing:
+        return {"success": True, "already_blocked": True}
+    await db.blocks.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "blocked_id": body.user_id,
+        "created_at": now_iso(),
+    })
+    return {"success": True}
+
+@api.post("/unblock")
+async def unblock_user(body: BlockIn, user: dict = Depends(get_current_user)):
+    await db.blocks.delete_one({"user_id": user["id"], "blocked_id": body.user_id})
+    return {"success": True}
+
+@api.get("/blocked")
+async def blocked_users(user: dict = Depends(get_current_user)):
+    blocks = await db.blocks.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    result = []
+    for b in blocks:
+        u = await db.users.find_one({"id": b["blocked_id"]}, {"_id": 0, "id": 1, "name": 1, "picture": 1})
+        if u:
+            result.append({
+                "id": u["id"], "name": u["name"],
+                "picture": u.get("picture") or f"https://ui-avatars.com/api/?name={u['name']}&background=FF2D7B&color=fff&size=200",
+                "blocked_at": b["created_at"],
+            })
+    return {"blocked": result}
 
 # ---------- History ----------
 @api.get("/transactions")

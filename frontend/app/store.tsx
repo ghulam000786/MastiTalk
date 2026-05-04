@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert, Linking, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,19 +14,35 @@ type Pack = { id: string; coins: number; price_inr: number; label: string; badge
 export default function Store() {
   const { user } = useAuth();
   const [packs, setPacks] = useState<Pack[]>([]);
+  const [paymentLink, setPaymentLink] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const r = await api<{ packs: Pack[] }>('/packs');
+        const r = await api<{ packs: Pack[]; razorpay_payment_link?: string }>('/packs');
         setPacks(r.packs);
+        setPaymentLink(r.razorpay_payment_link || '');
       } catch (e: any) { Alert.alert('Error', e.message); }
       finally { setLoading(false); }
     })();
   }, []);
 
   const buy = (p: Pack) => router.push({ pathname: '/checkout', params: { packId: p.id } });
+
+  const openPaymentLink = async () => {
+    if (!paymentLink) return;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.open(paymentLink, '_blank');
+    } else {
+      try { await Linking.openURL(paymentLink); } catch {}
+    }
+    Alert.alert(
+      'Quick Pay opened',
+      'Complete the payment on Razorpay. After paying, please share the Payment ID with support to credit your coins.',
+      [{ text: 'OK' }]
+    );
+  };
 
   return (
     <SafeAreaView style={s.wrap} edges={['top']}>
@@ -133,4 +149,10 @@ const s = StyleSheet.create({
 
   note: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', backgroundColor: C.surfaceAlt, padding: 14, borderRadius: 14, marginTop: 18 },
   noteText: { color: C.textSecondary, fontSize: 12, flex: 1, lineHeight: 17 },
+  quickPay: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    marginTop: 16, paddingVertical: 14, borderRadius: 999,
+    backgroundColor: C.purple,
+  },
+  quickPayText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });

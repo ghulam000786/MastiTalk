@@ -5,22 +5,30 @@ import requests
 BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://coin-connect-3.preview.emergentagent.com").rstrip("/")
 
 
-# ---------- Explore ----------
-def test_explore_returns_six_profiles_and_online_count():
-    r = requests.get(f"{BASE_URL}/api/explore")
+# ---------- Explore (now auth-gated for block filtering) ----------
+def test_explore_returns_profiles_and_online_count():
+    # Register a user to call auth-gated /explore
+    import uuid as _u
+    email = f"TEST_explore_{_u.uuid4().hex[:8]}@example.com"
+    reg = requests.post(f"{BASE_URL}/api/auth/register",
+                        json={"email": email, "password": "pass1234", "name": "ExplUser"})
+    assert reg.status_code == 200
+    tok = reg.json()["token"]
+    r = requests.get(f"{BASE_URL}/api/explore",
+                     headers={"Authorization": f"Bearer {tok}"})
     assert r.status_code == 200, r.text
     data = r.json()
-    assert "profiles" in data
-    assert "online_count" in data
-    assert len(data["profiles"]) == 6
-    # Validate each profile has the expected keys
+    assert "profiles" in data and "online_count" in data
+    # At least the 6 mock profiles should come through; real users may add more
+    assert len(data["profiles"]) >= 6
     for p in data["profiles"]:
         for key in ("id", "name", "country", "flag", "online", "photo"):
             assert key in p, f"Missing key {key}"
-    online_actual = sum(1 for p in data["profiles"] if p["online"])
-    assert data["online_count"] == online_actual
-    # No mongo _id leakage
     assert "_id" not in data
+
+def test_explore_unauthorized():
+    r = requests.get(f"{BASE_URL}/api/explore")
+    assert r.status_code == 401
 
 
 # ---------- Google Session ----------

@@ -110,6 +110,19 @@ export default function CallScreen() {
     return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
   };
 
+  // Parse peer info from route params
+  const params = useLocalSearchParams<{ channel: string; peer?: string }>();
+  let peerInfo: any = null;
+  try { peerInfo = params.peer ? JSON.parse(params.peer) : null; } catch {}
+
+  const reportPeer = () => {
+    if (!peerInfo?.id) {
+      router.push('/report');
+      return;
+    }
+    router.push({ pathname: '/report', params: { userId: peerInfo.id, name: peerInfo.name || '' } });
+  };
+
   if (status === 'error') {
     return (
       <SafeAreaView style={styles.wrap}><View style={styles.center}>
@@ -169,20 +182,27 @@ export default function CallScreen() {
       <SafeAreaView pointerEvents="box-none" style={styles.topOverlay} edges={['top']}>
         <View style={styles.topBar}>
           <View style={styles.chBadge}>
-            <View style={[styles.dot, { backgroundColor: status === 'connected' ? C.success : C.gold }]} />
-            <Text style={styles.chBadgeText} testID="call-channel-text">{channel}</Text>
+            <View style={[styles.dot, { backgroundColor: status === 'connected' ? '#22C55E' : C.pink }]} />
+            <Text style={styles.chBadgeText} testID="call-channel-text">
+              {peerInfo?.name || channel}
+            </Text>
           </View>
           <View style={styles.timerBadge}>
-            <Ionicons name="time-outline" size={14} color={C.gold} />
+            <Ionicons name="time-outline" size={14} color={C.pink} />
             <Text style={styles.timerText} testID="call-timer">{fmt(elapsed)}</Text>
           </View>
         </View>
 
+        <TouchableOpacity style={styles.reportTop} onPress={reportPeer} testID="call-report-btn">
+          <Ionicons name="flag" size={14} color="#fff" />
+          <Text style={styles.reportTopText}>Report</Text>
+        </TouchableOpacity>
+
         {status !== 'connected' && (
           <View style={styles.waiting}>
-            <ActivityIndicator color={C.gold} size="large" />
+            <ActivityIndicator color={C.pink} size="large" />
             <Text style={styles.waitingText}>
-              {status === 'connecting' ? 'Connecting to Agora…' :
+              {status === 'connecting' ? 'Connecting…' :
                status === 'ending' ? 'Ending call…' : 'Preparing…'}
             </Text>
           </View>
@@ -349,4 +369,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
     shadowColor: C.danger, shadowOpacity: 0.5, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
   },
+  reportTop: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    alignSelf: 'flex-end', marginTop: 10, marginRight: 16,
+    backgroundColor: 'rgba(239,68,68,0.85)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
+  },
+  reportTopText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 });

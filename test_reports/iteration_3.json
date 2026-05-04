@@ -1,0 +1,62 @@
+{
+  "summary": "Backend 38/38 tests pass (21 regression + 17 new for match/chat/report-block/razorpay-link). Frontend: Match screen (prefs, start, cancel, online-count), Chat tab empty state, Chat[peer] (send/video/menu Report/Block), Privacy, Terms, Blocked, Report (8 reasons + textarea + submit), Profile (Privacy/Terms/Blocked rows) all render correctly. TWO critical issues: (1) Store has no 'Quick Pay via Razorpay link' purple button in JSX even though openPaymentLink() helper & paymentLink state exist — button simply isn't rendered. (2) Call screen shows 'Call failed – Missing auth token' on hard navigation in Expo web preview because the auth store isn't persisted across full page reloads (web only; native is fine). This blocks web-testing of call-report-btn.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "store.tsx",
+        "issue": "CRITICAL: 'Quick Pay via Razorpay link' purple button is MISSING from JSX. openPaymentLink() function exists (line 33) and paymentLink state is fetched from /api/packs, but no <TouchableOpacity testID=\"razorpay-quickpay-btn\" onPress={openPaymentLink}> is rendered. Users cannot access the rzp.io/rzp/K0Un9AY fallback at all.",
+        "testID": "razorpay-quickpay-btn (missing)",
+        "priority": "HIGH"
+      },
+      {
+        "component": "(tabs)/profile.tsx",
+        "issue": "The 'Blocked users' row correctly navigates to /blocked and shows 'Blocked users' label, but its testID is still the legacy 'row-community'. Rename to 'row-blocked' for clarity/spec alignment.",
+        "testID": "row-community → should be row-blocked",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Auth persistence on web (full page reload)",
+        "issue": "After login, hard-navigating (url change / reload) loses the auth state — /api calls then return 401 and /call/[channel] renders 'Call failed – Missing auth token'. Native apps won't hit this since SPA navigation retains state, but it breaks the Expo web preview and also prevents deep-linking into /chat/[peer] or /call/[channel]. Fix: persist auth token via zustand/persist + AsyncStorage (or localStorage on web).",
+        "affected_testIDs": ["call-report-btn", "chat-send-btn (after hard nav)"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_coin_connect.py",
+    "/app/backend/tests/test_new_endpoints.py",
+    "/app/backend/tests/test_production_features.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Add the purple 'Quick Pay via Razorpay link' TouchableOpacity in store.tsx (testID='razorpay-quickpay-btn') that calls openPaymentLink(); render it conditionally when paymentLink is set.",
+    "Rename profile 'Blocked users' row testID from 'row-community' to 'row-blocked' for spec alignment.",
+    "Persist auth token across reloads on web (zustand persist middleware or AsyncStorage on native + localStorage on web) so /call/[channel] and other deep links work after full reload and in QA automation."
+  ],
+  "critical_code_review_comments": [
+    "store.tsx line 33-45: openPaymentLink() is defined but dead code — no caller/button. Either render a button or delete the function.",
+    "Auth store on web: route guard appears to keep user 'logged in' only for SPA transitions; after goto/reload, token is gone and all /api calls return 401. This is why the call screen and post-reload chat tests fail in web preview.",
+    "server.py end_call still uses raw dict instead of Pydantic (carry-over from previous iteration).",
+    "match_queue is in-memory; noted as intentional for MVP. For multi-pod production, move to Redis with TTL."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_production_features.py (new, 17 tests)",
+    "/app/backend/tests/test_new_endpoints.py (updated explore test to include auth and add 401 case)"
+  ],
+  "success_rate": {
+    "backend": "100% (38/38)",
+    "frontend": "~85% — 11 of 13 flows verified; 2 spec misses (Quick Pay button missing, call-report-btn unreachable due to auth non-persistence on web)"
+  },
+  "seed_data_creation": "Backend tests register TEST_<uuid>@example.com users (boy/girl) and build chats/blocks between them. Frontend tested with aman.boy@test.com / pass1234.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All new endpoints work: /packs returns razorpay_payment_link, /match/join+status+cancel+clear+online-count pair correctly by gender preference, /chat/send+messages+conversations, /report, /block+unblock+blocked, and chat to blocked user returns 403 + explore excludes blocked. Key testIDs on frontend: match→[pref-any,pref-boy,pref-girl,start-match-btn,cancel-match-btn,online-count,match-coins-pill]; chat/[peer]→[chat-back-btn,chat-video-btn,chat-menu-btn,menu-report-btn,menu-block-btn,chat-text-input,chat-send-btn]; profile→[row-privacy,row-terms,row-community(renders 'Blocked users'→/blocked)]; report→[reason-1..reason-8 (selector: [data-testid^=reason-] count=8), report-submit-btn]; store missing razorpay-quickpay-btn. On web preview, zustand auth state is NOT persisted; hard-nav (goto or reload) loses token so use SPA click-navigation in Playwright or register+login inline via fetch to get token.",
+  "rca_of_issue": "(1) Missing Quick Pay button: the refactor that added paymentLink fetching forgot to add the corresponding <TouchableOpacity> block to the JSX tree after line 67. (2) Call failed / chat send 401 after navigation: auth store does not use zustand/persist, so state only lives in memory; Playwright's page.goto triggers a full reload that clears the store, after which api() sends requests without Authorization header → 401s. Both are pure frontend fixes."
+}
