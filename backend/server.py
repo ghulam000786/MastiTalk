@@ -89,6 +89,15 @@ class OnboardingIn(BaseModel):
     gender: str
     age: int
 
+class PayoutRequestIn(BaseModel):
+    amount: int            # credits to withdraw (1 credit = ₹1)
+    method: str            # "upi" or "bank"
+    upi_id: Optional[str] = None
+    account_name: Optional[str] = None
+    account_number: Optional[str] = None
+    ifsc: Optional[str] = None
+    bank_name: Optional[str] = None
+
 # ---------- Data ----------
 COIN_PACKS = {
     "pack_100": {"id": "pack_100", "coins": 100, "price_inr": 99, "label": "Starter"},
@@ -96,7 +105,10 @@ COIN_PACKS = {
     "pack_1000": {"id": "pack_1000", "coins": 1200, "price_inr": 799, "label": "Pro"},
     "pack_5000": {"id": "pack_5000", "coins": 6500, "price_inr": 3499, "label": "Elite"},
 }
-CALL_COST_PER_MIN = 10
+CALL_COST_PER_MIN = 17           # boys pay 17 coins/min
+CALL_EARN_PER_MIN = 8            # girls earn 8 credits/min
+MIN_PAYOUT_CREDITS = 100         # girls need 100+ credits to withdraw
+CREDIT_TO_INR_RATE = 0.40        # 100 credits = ₹40 (1 credit = ₹0.40)
 
 EXPLORE_PROFILES = [
     {"id": "p_priya", "name": "Priya", "country": "India", "flag": "🇮🇳", "online": False,
@@ -262,6 +274,9 @@ async def get_packs():
     return {
         "packs": list(COIN_PACKS.values()),
         "call_cost_per_min": CALL_COST_PER_MIN,
+        "call_earn_per_min": CALL_EARN_PER_MIN,
+        "min_payout_credits": MIN_PAYOUT_CREDITS,
+        "credit_to_inr_rate": CREDIT_TO_INR_RATE,
         "razorpay_payment_link": RAZORPAY_PAYMENT_LINK,
     }
 
@@ -329,8 +344,10 @@ async def verify_payment(body: VerifyPaymentIn, user: dict = Depends(get_current
 # ---------- Agora ----------
 @api.post("/agora/token")
 async def agora_token(body: TokenRequest, user: dict = Depends(get_current_user)):
-    if user.get("coins", 0) < CALL_COST_PER_MIN:
-        raise HTTPException(status_code=402, detail="Insufficient coins to start a call")
+    # Girls are free to join calls (they earn credits). Boys must have enough coins.
+    if (user.get("gender") or "").lower() != "girl":
+        if user.get("coins", 0) < CALL_COST_PER_MIN:
+            raise HTTPException(status_code=402, detail="Insufficient coins to start a call")
     channel = body.channel_name.strip()
     if not channel:
         raise HTTPException(status_code=400, detail="Channel name required")
@@ -360,31 +377,68 @@ async def end_call(data: dict, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Call not found")
     if call.get("status") == "ended":
         current = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password_hash": 0})
-        return {"success": True, "coins_spent": 0, "balance": current.get("coins", 0)}
-    cost = minutes * CALL_COST_PER_MIN
-    current = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password_hash": 0})
-    cost = min(cost, current.get("coins", 0))
-    if cost > 0:
-        await db.users.update_one({"id": user["id"]}, {"$inc": {"coins": -cost}})
-        await db.transactions.insert_one({
-            "id": str(uuid.uuid4()), "user_id": user["id"], "type": "debit",
-            "coins": cost, "source": "call", "call_id": call_id,
-            "channel_name": call["channel_name"], "minutes": minutes,
-            "created_at": now_iso(),
-        })
+        return {
+            "success": True, "coins_spent": 0, "credits_earned": 0,
+            "balance": current.get("coins", 0), "credits": current.get("credits", 0),
+        }
+
+    gender = (user.get("gender") or "").lower()
+    coins_spent = 0
+    credits_earned = 0
+
+    if gender == "girl":
+        # Girls earn credits per minute (no coin deduction)
+        credits_earned = minutes * CALL_EARN_PER_MIN
+        if credits_earned > 0:
+            await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": credits_earned}})
+            await db.transactions.insert_one({
+                "id": str(uuid.uuid4()), "user_id": user["id"], "type": "earn",
+                "credits": credits_earned, "source": "call", "call_id": call_id,
+                "channel_name": call["channel_name"], "minutes": minutes,
+                "created_at": now_iso(),
+            })
+    else:
+        # Boys pay coins per minute
+        cost = minutes * CALL_COST_PER_MIN
+        current = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password_hash": 0})
+        cost = min(cost, current.get("coins", 0))
+        if cost > 0:
+            await db.users.update_one({"id": user["id"]}, {"$inc": {"coins": -cost}})
+            await db.transactions.insert_one({
+                "id": str(uuid.uuid4()), "user_id": user["id"], "type": "debit",
+                "coins": cost, "source": "call", "call_id": call_id,
+                "channel_name": call["channel_name"], "minutes": minutes,
+                "created_at": now_iso(),
+            })
+        coins_spent = cost
+
     await db.calls.update_one(
         {"id": call_id},
-        {"$set": {"duration_minutes": minutes, "coins_spent": cost, "ended_at": now_iso(), "status": "ended"}},
+        {"$set": {
+            "duration_minutes": minutes,
+            "coins_spent": coins_spent,
+            "credits_earned": credits_earned,
+            "ended_at": now_iso(),
+            "status": "ended",
+        }},
     )
     updated = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password_hash": 0})
-    return {"success": True, "coins_spent": cost, "balance": updated["coins"]}
+    return {
+        "success": True,
+        "coins_spent": coins_spent,
+        "credits_earned": credits_earned,
+        "balance": updated.get("coins", 0),
+        "credits": updated.get("credits", 0),
+    }
 
 # ---------- Real-time Random Matching ----------
 # Users enter queue; worker-free pairing happens synchronously on each join.
 @api.post("/match/join")
 async def match_join(body: MatchJoinIn, user: dict = Depends(get_current_user)):
-    if user.get("coins", 0) < CALL_COST_PER_MIN:
-        raise HTTPException(status_code=402, detail="Insufficient coins to start a call")
+    # Girls join free (they earn credits). Boys must have enough coins.
+    if (user.get("gender") or "").lower() != "girl":
+        if user.get("coins", 0) < CALL_COST_PER_MIN:
+            raise HTTPException(status_code=402, detail="Insufficient coins to start a call")
 
     # Get blocks both directions
     blocked_by_me = await db.blocks.find({"user_id": user["id"]}, {"_id": 0, "blocked_id": 1}).to_list(200)
@@ -659,6 +713,104 @@ async def list_calls(user: dict = Depends(get_current_user)):
     cursor = db.calls.find({"user_id": user["id"]}, {"_id": 0}).sort("started_at", -1).limit(50)
     items = await cursor.to_list(length=50)
     return {"calls": items}
+
+# ---------- Payout / Redeem (female revenue) ----------
+def _luhn_valid_upi(upi: str) -> bool:
+    # basic shape: name@provider
+    if not upi or "@" not in upi:
+        return False
+    left, right = upi.split("@", 1)
+    return bool(left) and bool(right) and " " not in upi
+
+@api.get("/payout/config")
+async def payout_config(user: dict = Depends(get_current_user)):
+    credits = int(user.get("credits", 0))
+    inr = round(credits * CREDIT_TO_INR_RATE, 2)
+    return {
+        "credits": credits,
+        "credit_to_inr_rate": CREDIT_TO_INR_RATE,
+        "min_payout_credits": MIN_PAYOUT_CREDITS,
+        "inr_equivalent": inr,
+        "call_earn_per_min": CALL_EARN_PER_MIN,
+        "gender": user.get("gender"),
+    }
+
+@api.post("/payout/request")
+async def payout_request(body: PayoutRequestIn, user: dict = Depends(get_current_user)):
+    if (user.get("gender") or "").lower() != "girl":
+        raise HTTPException(status_code=403, detail="Only female users can redeem credits")
+    amount = int(body.amount or 0)
+    if amount < MIN_PAYOUT_CREDITS:
+        raise HTTPException(status_code=400, detail=f"Minimum redeem is {MIN_PAYOUT_CREDITS} credits")
+    current = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password_hash": 0})
+    if int(current.get("credits", 0)) < amount:
+        raise HTTPException(status_code=400, detail="Not enough credits")
+
+    method = (body.method or "").lower().strip()
+    if method not in ("upi", "bank"):
+        raise HTTPException(status_code=400, detail="Method must be 'upi' or 'bank'")
+
+    details: dict = {}
+    if method == "upi":
+        upi = (body.upi_id or "").strip()
+        if not _luhn_valid_upi(upi):
+            raise HTTPException(status_code=400, detail="Invalid UPI ID (e.g. name@paytm)")
+        details = {"upi_id": upi}
+    else:
+        acc_name = (body.account_name or "").strip()
+        acc_no = (body.account_number or "").strip()
+        ifsc = (body.ifsc or "").strip().upper()
+        bank_name = (body.bank_name or "").strip()
+        if not acc_name or len(acc_name) < 2:
+            raise HTTPException(status_code=400, detail="Account holder name is required")
+        if not acc_no or not acc_no.isdigit() or not (6 <= len(acc_no) <= 20):
+            raise HTTPException(status_code=400, detail="Invalid account number")
+        if not ifsc or len(ifsc) != 11:
+            raise HTTPException(status_code=400, detail="Invalid IFSC code (must be 11 characters)")
+        if not bank_name:
+            raise HTTPException(status_code=400, detail="Bank name is required")
+        details = {
+            "account_name": acc_name, "account_number": acc_no,
+            "ifsc": ifsc, "bank_name": bank_name,
+        }
+
+    # Deduct credits immediately (pending payout)
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": -amount}})
+
+    inr_amount = round(amount * CREDIT_TO_INR_RATE, 2)
+    payout_id = str(uuid.uuid4())
+    payout = {
+        "id": payout_id,
+        "user_id": user["id"],
+        "user_name": user.get("name"),
+        "user_email": user.get("email"),
+        "credits": amount,
+        "inr_amount": inr_amount,
+        "method": method,
+        "details": details,
+        "status": "pending",  # admin will approve/reject/mark paid
+        "created_at": now_iso(),
+    }
+    await db.payouts.insert_one(payout)
+    await db.transactions.insert_one({
+        "id": str(uuid.uuid4()), "user_id": user["id"], "type": "redeem",
+        "credits": amount, "source": "payout", "payout_id": payout_id,
+        "inr_amount": inr_amount, "method": method,
+        "created_at": now_iso(),
+    })
+    updated = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password_hash": 0})
+    payout.pop("_id", None)
+    return {
+        "success": True,
+        "payout": payout,
+        "credits": updated.get("credits", 0),
+    }
+
+@api.get("/payout/history")
+async def payout_history(user: dict = Depends(get_current_user)):
+    cursor = db.payouts.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).limit(100)
+    items = await cursor.to_list(length=100)
+    return {"payouts": items}
 
 # ---------- Mount ----------
 app.include_router(api)

@@ -23,6 +23,8 @@ export default function CallScreen() {
   const [err, setErr] = useState('');
   const [elapsed, setElapsed] = useState(0);
   const [remoteUsers, setRemoteUsers] = useState(0);
+  const [muted, setMuted] = useState(false);
+  const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('user');
   const timerRef = useRef<any>(null);
   const endedRef = useRef(false);
   const wvRef = useRef<any>(null);
@@ -68,19 +70,23 @@ export default function CallScreen() {
     router.replace('/(tabs)/match');
   };
 
-  const toggleMute = () => {
+  const sendToFrame = (cmd: string) => {
     if (Platform.OS === 'web') {
-      try { iframeRef.current?.contentWindow?.toggleMute?.(); } catch {}
+      try {
+        iframeRef.current?.contentWindow?.postMessage({ __cc_cmd: cmd }, '*');
+      } catch {}
     } else {
-      wvRef.current?.injectJavaScript(`try{window.toggleMute && window.toggleMute();}catch(e){} true;`);
+      wvRef.current?.injectJavaScript(`try{window.__cc_handle && window.__cc_handle('${cmd}');}catch(e){} true;`);
     }
   };
-  const toggleCamera = () => {
-    if (Platform.OS === 'web') {
-      try { iframeRef.current?.contentWindow?.toggleCamera?.(); } catch {}
-    } else {
-      wvRef.current?.injectJavaScript(`try{window.toggleCamera && window.toggleCamera();}catch(e){} true;`);
-    }
+
+  const toggleMute = () => {
+    setMuted(m => !m);
+    sendToFrame('toggleMute');
+  };
+  const switchCamera = () => {
+    setCameraFacing(f => (f === 'user' ? 'environment' : 'user'));
+    sendToFrame('switchCamera');
   };
 
   const onMessage = (ev: any) => {
@@ -90,6 +96,8 @@ export default function CallScreen() {
       if (msg.type === 'joined') setStatus('connected');
       else if (msg.type === 'remote-joined') setRemoteUsers(msg.count || 1);
       else if (msg.type === 'remote-left') setRemoteUsers(msg.count || 0);
+      else if (msg.type === 'mute-state') setMuted(!!msg.muted);
+      else if (msg.type === 'camera-state') setCameraFacing(msg.facing === 'environment' ? 'environment' : 'user');
       else if (msg.type === 'error') { setErr(msg.error || 'Call error'); setStatus('error'); }
     } catch {}
   };
@@ -219,13 +227,21 @@ export default function CallScreen() {
       {/* Bottom controls */}
       <SafeAreaView pointerEvents="box-none" style={styles.bottomOverlay} edges={['bottom']}>
         <View style={styles.controls}>
-          <TouchableOpacity style={styles.ctrlBtn} onPress={toggleMute} testID="call-mute-btn">
-            <Ionicons name="mic" size={24} color={C.textPrimary} />
+          <TouchableOpacity
+            style={[styles.ctrlBtn, muted && styles.ctrlBtnActive]}
+            onPress={toggleMute}
+            testID="call-mute-btn"
+          >
+            <Ionicons
+              name={muted ? 'mic-off' : 'mic'}
+              size={24}
+              color={muted ? '#fff' : C.textPrimary}
+            />
           </TouchableOpacity>
           <TouchableOpacity style={styles.endBtn} onPress={endCall} testID="call-end-btn">
             <Ionicons name="call" size={26} color="#fff" style={{ transform: [{ rotate: '135deg' }] }} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.ctrlBtn} onPress={toggleCamera} testID="call-camera-btn">
+          <TouchableOpacity style={styles.ctrlBtn} onPress={switchCamera} testID="call-camera-btn">
             <Ionicons name="camera-reverse" size={24} color={C.textPrimary} />
           </TouchableOpacity>
         </View>
@@ -270,6 +286,8 @@ function buildCallHtml(t: { app_id: string; channel: string; token: string; uid:
   var muted = false, camOn = true;
   var remoteCount = 0;
   var joined = false;
+  var videoDevices = [];
+  var currentVideoDeviceIdx = 0;
 
   function post(m){
     try{
@@ -327,6 +345,17 @@ function buildCallHtml(t: { app_id: string; channel: string; token: string; uid:
     }
   }
 
+  async function refreshVideoDevices(){
+    try{
+      videoDevices = await AgoraRTC.getCameras();
+    }catch(e){
+      try{
+        var devs = await navigator.mediaDevices.enumerateDevices();
+        videoDevices = devs.filter(function(d){ return d.kind === 'videoinput'; });
+      }catch(_){ videoDevices = []; }
+    }
+  }
+
   async function join(){
     if(joined) return;
     joined = true;
@@ -336,10 +365,19 @@ function buildCallHtml(t: { app_id: string; channel: string; token: string; uid:
         localTracks.audio = await AgoraRTC.createMicrophoneAudioTrack();
       }catch(e){ post({type:'error', error:'Mic error: '+(e.message||e)}); }
       try{
-        localTracks.video = await AgoraRTC.createCameraVideoTrack();
+        // Prefer front (user) camera initially
+        localTracks.video = await AgoraRTC.createCameraVideoTrack({ facingMode: 'user' });
         var lc = document.getElementById('local');
         lc.innerHTML='';
         localTracks.video.play(lc);
+        await refreshVideoDevices();
+        // Find current device index
+        try{
+          var curId = localTracks.video.getMediaStreamTrack().getSettings().deviceId;
+          for(var i=0;i<videoDevices.length;i++){
+            if(videoDevices[i].deviceId === curId){ currentVideoDeviceIdx = i; break; }
+          }
+        }catch(_){}
       }catch(e){ post({type:'error', error:'Camera error: '+(e.message||e)}); }
       var pub=[];
       if(localTracks.audio) pub.push(localTracks.audio);
@@ -351,14 +389,75 @@ function buildCallHtml(t: { app_id: string; channel: string; token: string; uid:
     }
   }
 
-  window.toggleMute = function(){
+  async function doToggleMute(){
+    if(!localTracks.audio) return;
     muted = !muted;
-    if(localTracks.audio) localTracks.audio.setEnabled(!muted);
+    try{
+      if(typeof localTracks.audio.setMuted === 'function'){
+        await localTracks.audio.setMuted(muted);
+      } else {
+        await localTracks.audio.setEnabled(!muted);
+      }
+    }catch(e){
+      try{ await localTracks.audio.setEnabled(!muted); }catch(_){}
+    }
+    post({type:'mute-state', muted: muted});
+  }
+
+  async function doSwitchCamera(){
+    if(!localTracks.video) return;
+    if(!videoDevices || videoDevices.length === 0){
+      await refreshVideoDevices();
+    }
+    if(videoDevices.length < 2){
+      // Single camera (e.g. desktop) — fallback: toggle facing mode by recreating track
+      try{
+        var newFacing = (window.__cc_facing === 'environment') ? 'user' : 'environment';
+        var oldTrack = localTracks.video;
+        var newTrack = await AgoraRTC.createCameraVideoTrack({ facingMode: newFacing });
+        await client.unpublish(oldTrack);
+        oldTrack.stop(); oldTrack.close();
+        localTracks.video = newTrack;
+        var lc = document.getElementById('local'); lc.innerHTML='';
+        newTrack.play(lc);
+        await client.publish(newTrack);
+        window.__cc_facing = newFacing;
+        post({type:'camera-state', facing: newFacing});
+      }catch(e){
+        post({type:'error', error: 'Could not switch camera: ' + (e.message||e)});
+      }
+      return;
+    }
+    currentVideoDeviceIdx = (currentVideoDeviceIdx + 1) % videoDevices.length;
+    var nextId = videoDevices[currentVideoDeviceIdx].deviceId;
+    try{
+      await localTracks.video.setDevice(nextId);
+      var label = (videoDevices[currentVideoDeviceIdx].label || '').toLowerCase();
+      var facing = (label.indexOf('back') !== -1 || label.indexOf('rear') !== -1 || label.indexOf('environment') !== -1) ? 'environment' : 'user';
+      window.__cc_facing = facing;
+      post({type:'camera-state', facing: facing});
+    }catch(e){
+      post({type:'error', error:'Switch camera failed: ' + (e.message||e)});
+    }
+  }
+
+  // Universal command handler (used by RN WebView)
+  window.__cc_handle = function(cmd){
+    if(cmd === 'toggleMute') return doToggleMute();
+    if(cmd === 'switchCamera') return doSwitchCamera();
+    if(cmd === 'leave') return window.leave && window.leave();
   };
-  window.toggleCamera = function(){
-    camOn = !camOn;
-    if(localTracks.video) localTracks.video.setEnabled(camOn);
-  };
+
+  // Listen to postMessage from parent (web iframe case)
+  window.addEventListener('message', function(e){
+    var d = e && e.data;
+    if(!d || typeof d !== 'object' || !d.__cc_cmd) return;
+    window.__cc_handle(d.__cc_cmd);
+  });
+
+  // Backwards-compat (called via injectJavaScript)
+  window.toggleMute = doToggleMute;
+  window.toggleCamera = doSwitchCamera;
   window.leave = async function(){
     try{
       if(localTracks.audio){ localTracks.audio.stop(); localTracks.audio.close(); }
@@ -408,6 +507,9 @@ const styles = StyleSheet.create({
   ctrlBtn: {
     width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(22,32,50,0.9)',
     justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+  },
+  ctrlBtnActive: {
+    backgroundColor: C.danger, borderColor: C.danger,
   },
   endBtn: {
     width: 68, height: 68, borderRadius: 34, backgroundColor: C.danger,

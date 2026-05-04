@@ -15,14 +15,20 @@ export default function Store() {
   const { user } = useAuth();
   const [packs, setPacks] = useState<Pack[]>([]);
   const [paymentLink, setPaymentLink] = useState<string>('');
+  const [costPerMin, setCostPerMin] = useState<number>(17);
+  const [earnPerMin, setEarnPerMin] = useState<number>(8);
   const [loading, setLoading] = useState(true);
+
+  const isGirl = (user?.gender || '').toLowerCase() === 'girl';
 
   useEffect(() => {
     (async () => {
       try {
-        const r = await api<{ packs: Pack[]; razorpay_payment_link?: string }>('/packs');
+        const r = await api<{ packs: Pack[]; razorpay_payment_link?: string; call_cost_per_min?: number; call_earn_per_min?: number }>('/packs');
         setPacks(r.packs);
         setPaymentLink(r.razorpay_payment_link || '');
+        if (r.call_cost_per_min) setCostPerMin(r.call_cost_per_min);
+        if (r.call_earn_per_min) setEarnPerMin(r.call_earn_per_min);
       } catch (e: any) { Alert.alert('Error', e.message); }
       finally { setLoading(false); }
     })();
@@ -50,75 +56,111 @@ export default function Store() {
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn} testID="store-back-btn">
           <Ionicons name="chevron-back" size={24} color={C.textPrimary} />
         </TouchableOpacity>
-        <Text style={s.title} testID="store-title">Buy Coins</Text>
+        <Text style={s.title} testID="store-title">{isGirl ? 'Earnings' : 'Buy Coins'}</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}>
-        <View style={s.hero}>
-          <View style={s.heroGlow} />
-          <Text style={s.heroLabel}>YOUR BALANCE</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
-            <View style={s.bigCoin}><Text style={{ color: '#fff', fontWeight: '900', fontSize: 14 }}>₿</Text></View>
-            <Text style={s.heroValue} testID="store-balance">{user?.coins ?? 0}</Text>
-            <Text style={s.heroUnit}>coins</Text>
-          </View>
-          <Text style={s.heroNote}>Each minute of call costs 10 coins</Text>
-        </View>
+        {isGirl ? (
+          <>
+            <View style={s.hero}>
+              <View style={s.heroGlow} />
+              <Text style={s.heroLabel}>YOUR EARNINGS</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
+                <Ionicons name="diamond" size={22} color="#fff" />
+                <Text style={s.heroValue}>{user?.credits ?? 0}</Text>
+                <Text style={s.heroUnit}>credits</Text>
+              </View>
+              <Text style={s.heroNote}>
+                ≈ ₹{(((user?.credits ?? 0) * 0.40)).toFixed(2)} · You earn {earnPerMin} credits per minute
+              </Text>
+            </View>
 
-        {loading ? (
-          <View style={{ paddingVertical: 60, alignItems: 'center' }}>
-            <ActivityIndicator color={C.pink} size="large" />
-          </View>
+            <TouchableOpacity
+              testID="go-redeem-btn"
+              style={[s.quickPay, { backgroundColor: C.pink, marginTop: 16 }]}
+              onPress={() => router.push('/redeem')}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="cash" size={18} color="#fff" />
+              <Text style={s.quickPayText}>Redeem to UPI / Bank</Text>
+            </TouchableOpacity>
+
+            <View style={[s.note, { backgroundColor: C.purpleBg, marginTop: 16 }]}>
+              <Ionicons name="information-circle" size={16} color={C.purple} />
+              <Text style={s.noteText}>
+                As a female user, you don't pay coins. Every minute on call earns you {earnPerMin} credits which you can redeem for cash via UPI or bank transfer (100 credits = ₹40, min 100 credits).
+              </Text>
+            </View>
+          </>
         ) : (
-          <View style={{ gap: 12, marginTop: 16 }}>
-            {packs.map(p => (
+          <>
+            <View style={s.hero}>
+              <View style={s.heroGlow} />
+              <Text style={s.heroLabel}>YOUR BALANCE</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
+                <View style={s.bigCoin}><Text style={{ color: '#fff', fontWeight: '900', fontSize: 14 }}>₿</Text></View>
+                <Text style={s.heroValue} testID="store-balance">{user?.coins ?? 0}</Text>
+                <Text style={s.heroUnit}>coins</Text>
+              </View>
+              <Text style={s.heroNote}>Each minute of call costs {costPerMin} coins</Text>
+            </View>
+
+            {loading ? (
+              <View style={{ paddingVertical: 60, alignItems: 'center' }}>
+                <ActivityIndicator color={C.pink} size="large" />
+              </View>
+            ) : (
+              <View style={{ gap: 12, marginTop: 16 }}>
+                {packs.map(p => (
+                  <TouchableOpacity
+                    key={p.id} testID={`pack-${p.id}`}
+                    style={[s.pack, p.badge ? s.packHl : null]}
+                    onPress={() => buy(p)}
+                    activeOpacity={0.85}
+                  >
+                    <View style={s.packIcon}>
+                      <Text style={{ color: '#fff', fontWeight: '900', fontSize: 18 }}>₿</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={s.packLabel}>{p.label}</Text>
+                        {p.badge ? (
+                          <View style={s.badge}><Text style={s.badgeText}>{p.badge}</Text></View>
+                        ) : null}
+                      </View>
+                      <Text style={s.packCoins}>{p.coins.toLocaleString()} coins</Text>
+                      <Text style={s.packMins}>≈ {Math.floor(p.coins / costPerMin)} mins of calls</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={s.price}>₹{p.price_inr}</Text>
+                      <View style={s.buyPill}><Text style={s.buyPillText}>Buy</Text></View>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            <View style={s.note}>
+              <Ionicons name="shield-checkmark" size={16} color={C.green} />
+              <Text style={s.noteText}>
+                Payments are secured by Razorpay. Test card: 4111 1111 1111 1111, any CVV, future expiry.
+              </Text>
+            </View>
+
+            {paymentLink ? (
               <TouchableOpacity
-                key={p.id} testID={`pack-${p.id}`}
-                style={[s.pack, p.badge ? s.packHl : null]}
-                onPress={() => buy(p)}
+                testID="razorpay-quickpay-btn"
+                style={s.quickPay}
+                onPress={openPaymentLink}
                 activeOpacity={0.85}
               >
-                <View style={s.packIcon}>
-                  <Text style={{ color: '#fff', fontWeight: '900', fontSize: 18 }}>₿</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={s.packLabel}>{p.label}</Text>
-                    {p.badge ? (
-                      <View style={s.badge}><Text style={s.badgeText}>{p.badge}</Text></View>
-                    ) : null}
-                  </View>
-                  <Text style={s.packCoins}>{p.coins.toLocaleString()} coins</Text>
-                  <Text style={s.packMins}>≈ {Math.floor(p.coins / 10)} mins of calls</Text>
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={s.price}>₹{p.price_inr}</Text>
-                  <View style={s.buyPill}><Text style={s.buyPillText}>Buy</Text></View>
-                </View>
+                <Ionicons name="flash" size={18} color="#fff" />
+                <Text style={s.quickPayText}>Quick Pay via Razorpay link</Text>
               </TouchableOpacity>
-            ))}
-          </View>
+            ) : null}
+          </>
         )}
-
-        <View style={s.note}>
-          <Ionicons name="shield-checkmark" size={16} color={C.green} />
-          <Text style={s.noteText}>
-            Payments are secured by Razorpay. Test card: 4111 1111 1111 1111, any CVV, future expiry.
-          </Text>
-        </View>
-
-        {paymentLink ? (
-          <TouchableOpacity
-            testID="razorpay-quickpay-btn"
-            style={s.quickPay}
-            onPress={openPaymentLink}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="flash" size={18} color="#fff" />
-            <Text style={s.quickPayText}>Quick Pay via Razorpay link</Text>
-          </TouchableOpacity>
-        ) : null}
       </ScrollView>
     </SafeAreaView>
   );

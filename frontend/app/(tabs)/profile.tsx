@@ -11,6 +11,7 @@ import { C } from '../../src/theme';
 export default function Profile() {
   const { user, logout } = useAuth();
   const [beauty, setBeauty] = React.useState(false);
+  const isGirl = (user?.gender || '').toLowerCase() === 'girl';
 
   const confirmLogout = () => {
     if (Platform.OS === 'web') {
@@ -45,28 +46,48 @@ export default function Profile() {
             <Text style={s.heroName} numberOfLines={1} testID="profile-name">{user?.name || 'User'}</Text>
             <Text style={s.heroEmail} numberOfLines={1} testID="profile-email">{user?.email}</Text>
             <View style={s.genderPill}>
-              <Ionicons name="male" size={11} color="#fff" />
-              <Text style={s.genderText}>BOY</Text>
+              <Ionicons name={isGirl ? 'female' : 'male'} size={11} color="#fff" />
+              <Text style={s.genderText}>{isGirl ? 'GIRL' : 'BOY'}</Text>
             </View>
           </View>
         </View>
 
         {/* Stat tiles */}
         <View style={s.stats}>
-          <View style={s.stat} testID="stat-coins">
-            <View style={[s.statIcon, { backgroundColor: C.yellowBg }]}>
-              <Text style={{ fontSize: 16, fontWeight: '900', color: C.yellow }}>₿</Text>
+          {isGirl ? (
+            <View style={s.stat} testID="stat-credits">
+              <View style={[s.statIcon, { backgroundColor: C.purpleBg }]}>
+                <Ionicons name="diamond" size={16} color={C.purple} />
+              </View>
+              <Text style={s.statValue}>{user?.credits ?? 0}</Text>
+              <Text style={s.statLabel}>Credits</Text>
             </View>
-            <Text style={s.statValue} testID="profile-coins">{user?.coins ?? 0}</Text>
-            <Text style={s.statLabel}>Coins</Text>
-          </View>
-          <View style={s.stat} testID="stat-credits">
-            <View style={[s.statIcon, { backgroundColor: C.purpleBg }]}>
-              <Ionicons name="diamond" size={16} color={C.purple} />
+          ) : (
+            <View style={s.stat} testID="stat-coins">
+              <View style={[s.statIcon, { backgroundColor: C.yellowBg }]}>
+                <Text style={{ fontSize: 16, fontWeight: '900', color: C.yellow }}>₿</Text>
+              </View>
+              <Text style={s.statValue} testID="profile-coins">{user?.coins ?? 0}</Text>
+              <Text style={s.statLabel}>Coins</Text>
             </View>
-            <Text style={s.statValue}>{user?.credits ?? 0}</Text>
-            <Text style={s.statLabel}>Credits</Text>
-          </View>
+          )}
+          {isGirl ? (
+            <View style={s.stat} testID="stat-earnings">
+              <View style={[s.statIcon, { backgroundColor: '#DCFCE7' }]}>
+                <Ionicons name="cash" size={16} color={C.green} />
+              </View>
+              <Text style={s.statValue}>₹{(((user?.credits ?? 0) * 0.40)).toFixed(0)}</Text>
+              <Text style={s.statLabel}>Earnings</Text>
+            </View>
+          ) : (
+            <View style={s.stat} testID="stat-credits">
+              <View style={[s.statIcon, { backgroundColor: C.purpleBg }]}>
+                <Ionicons name="diamond" size={16} color={C.purple} />
+              </View>
+              <Text style={s.statValue}>{user?.credits ?? 0}</Text>
+              <Text style={s.statLabel}>Credits</Text>
+            </View>
+          )}
           <TouchableOpacity style={s.stat} onPress={() => router.push('/history')} testID="stat-history">
             <View style={[s.statIcon, { backgroundColor: C.pinkBg }]}>
               <Ionicons name="time" size={16} color={C.pink} />
@@ -76,11 +97,18 @@ export default function Profile() {
           </TouchableOpacity>
         </View>
 
-        {/* Get VIP */}
-        <TouchableOpacity style={s.vip} testID="vip-btn" onPress={() => router.push('/store')}>
-          <Ionicons name="flash" size={20} color="#fff" />
-          <Text style={s.vipText}>Get VIP</Text>
-        </TouchableOpacity>
+        {/* CTA: Redeem for girls, Get VIP for boys */}
+        {isGirl ? (
+          <TouchableOpacity style={s.vip} testID="redeem-btn" onPress={() => router.push('/redeem')}>
+            <Ionicons name="cash" size={20} color="#fff" />
+            <Text style={s.vipText}>Redeem to UPI / Bank</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={s.vip} testID="vip-btn" onPress={() => router.push('/store')}>
+            <Ionicons name="flash" size={20} color="#fff" />
+            <Text style={s.vipText}>Get Coins</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Preferences */}
         <Text style={s.sectionLabel}>PREFERENCES</Text>
