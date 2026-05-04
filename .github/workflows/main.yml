@@ -26,14 +26,22 @@ jobs:
           cd frontend
           npm install
           
+      - name: Remove splash config
+        run: |
+          cd frontend
+          npx expo config --type public
+          sed -i '/splash/d' app.json || true
+          sed -i '/"plugins"/,/]/d' app.json || true
+          
       - name: Prebuild Android
         run: |
           cd frontend
-          npx expo prebuild --platform android
+          npx expo prebuild --platform android --no-install
           
       - name: Build APK
         run: |
           cd frontend/android
+          chmod +x ./gradlew
           ./gradlew assembleRelease
           
       - name: Upload APK
