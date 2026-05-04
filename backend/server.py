@@ -959,6 +959,10 @@ async def _startup():
     except Exception:
         logger.exception("ensure_admin_seed failed")
 
+@app.get("/")
+def read_port():
+    return {"message": "Hello World"}
+
 # ---------- Mount ----------
 app.include_router(api)
 
