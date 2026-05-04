@@ -53,3 +53,22 @@
     }
   }
 }
+
+{
+     "expo": {
+       "name": "MastiTalk",
+       "plugins": [
+         [
+           "expo-build-properties",
+           {
+             "android": {
+               "extraMavenRepos": [
+                 "https://maven.google.com",
+                 "https://jitpack.io"
+               ]
+             }
+           }
+         ]
+       ]
+     }
+   }
