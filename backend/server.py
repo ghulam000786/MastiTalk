@@ -196,7 +196,7 @@ def public_user(u: dict) -> dict:
     age = u.get("age")
     gender = u.get("gender")
     onboarded = bool(gender in ("boy", "girl") and isinstance(age, int) and age >= 18)
-    is_admin = (u.get("email") or "").lower() in ADMIN_EMAILS or bool(u.get("is_admin"))
+    is_admin = (u.get("email") or "").lower() in ADMIN_EMAILS or bool(u.get("isAdmin"))  # ← isAdmin karo
     return {
         "id": u["id"], "email": u["email"], "name": u["name"],
         "picture": u.get("picture"), "coins": u.get("coins", 0),
@@ -205,6 +205,7 @@ def public_user(u: dict) -> dict:
         "age": age,
         "onboarded": onboarded,
         "is_admin": is_admin,
+        "role": u.get("role", "user")  # ← Ye line add karo
     }
 
 def conversation_id(a: str, b: str) -> str:
