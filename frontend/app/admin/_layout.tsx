@@ -1,6 +1,6 @@
 import { Redirect, Stack } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
-import { View, ActivityIndicator } from 'react-native';
+import { ActivityIndicator } from 'react-native';
 
 export default function AdminLayout() {
   const { user, isLoading } = useAuth();
@@ -9,8 +9,7 @@ export default function AdminLayout() {
     return <ActivityIndicator />;
   }
 
-  // Abhi ke liye sirf is_admin check karo
-  if (user?.is_admin !== true) {
+  if (user?.is_admin !== true) {  // ← {} bracket zaruri hai
     return <Redirect href="/" />;
   }
 
