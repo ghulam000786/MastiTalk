@@ -207,7 +207,7 @@ def public_user(u: dict) -> dict:
         "is_admin": is_admin,
         "role": u.get("role", "user")  # ← Ye line add karo
     }
-
+    
 def conversation_id(a: str, b: str) -> str:
     return "_".join(sorted([a, b]))
 
