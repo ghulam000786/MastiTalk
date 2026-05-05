@@ -12,7 +12,7 @@ export default function Profile() {
   const { user, logout } = useAuth();
   const [beauty, setBeauty] = React.useState(false);
   const isGirl = (user?.gender || '').toLowerCase() === 'girl';
-  const isAdmin = !!user?.is_admin;
+  const isAdmin = user?.role === "ADMIN" || user?.is_admin === true;
 
   const confirmLogout = () => {
     if (Platform.OS === 'web') {
