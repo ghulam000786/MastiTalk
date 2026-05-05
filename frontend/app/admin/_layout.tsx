@@ -9,7 +9,7 @@ export default function AdminLayout() {
     return <ActivityIndicator />;
   }
 
-  if (user?.is_admin !== true) {}  // ← {} bracket zaruri hai
+  if (user?.is_admin !== true) {  // ← {} bracket zaruri hai
     return <Redirect href="/" />;
   }
 
