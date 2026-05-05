@@ -183,7 +183,7 @@ export default function Login() {
             <Ionicons name="flame" size={56} color="#fff" />
           </View>
         </View>
-        <Text style={s.title} testID="brand-title">MastiTalk</Text>
+        <Text style={s.title} testID="brand-title">'MastiTalk'</Text>
         <Text style={s.subtitle}>Random video calls. Real connections.</Text>
       </View>
 
