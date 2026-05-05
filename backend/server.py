@@ -14,6 +14,20 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from datetime import datetime, timezone
 
+load_dotenv()
+
+app = FastAPI()
+
+# ====== YE POORA BLOCK ADD KAR DE ======
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Sabko allow kar de
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
+# ====== YAHAN TAK ======
+
 import bcrypt
 import jwt
 import razorpay
