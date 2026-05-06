@@ -76,7 +76,7 @@ export default function AdminPanel() {
   useEffect(() => { load(); }, [load]);
 
   // Guard
-  if (!user?.is_admin) {
+  if (!user?.isAdmin) {
     return (
       <SafeAreaView style={s.wrap} edges={['top']}>
         <View style={s.header}>
