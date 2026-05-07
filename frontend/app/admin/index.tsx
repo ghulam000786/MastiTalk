@@ -361,8 +361,8 @@ export default function AdminPanel() {
           </View>
         </View>
       </Modal>
-      </>
-    </SafeAreaView>
+      </SafeAreaView>
+    </>
   );
 }
 
