@@ -5,11 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "extra": {
-      "eas": {
-        "projectId": "14c30663-44cc-4515-9add-744c430a031a"
-      }
-    },
+    
     "android": {
       "package": "com.rehan.mastitalk",
       "permissions": [
