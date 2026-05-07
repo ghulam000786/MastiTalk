@@ -379,5 +379,6 @@ backBtn: {
   borderRadius: 14, 
   backgroundColor: C.surfaceAlt, 
   justifyContent: 'center', 
-  alignItems: 'center' 
+  alignItems: 'center'
 },
+});
