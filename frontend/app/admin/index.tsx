@@ -111,7 +111,7 @@ export default function AdminPanel() {
     if (!actionPayout ||!actionType) return;
     setSubmitting(true);
     try {
-      const path = /admin/payouts/${actionPayout.id}/${actionType};
+      const path = '/admin/payouts/${actionPayout.id}/${actionType}';
       await api(path, {
         method: 'POST',
         body: JSON.stringify({ note, transaction_ref: txRef }),
