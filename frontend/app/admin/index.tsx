@@ -297,9 +297,9 @@ export default function AdminPanel() {
                   </View>
                 )}
               </View>
-            )}
+         
           </View>
-        )}
+      
       </ScrollView>
 
       <Modal visible={!!actionPayout} animationType="slide" transparent onRequestClose={closeAction}>
