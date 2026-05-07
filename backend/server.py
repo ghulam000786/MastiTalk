@@ -992,3 +992,13 @@ app.add_middleware(
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
+# ========= ADMIN CHECK API - COPY PASTE KAR DE =========
+@app.get("/api/me")
+async def check_admin():
+    return {
+        "isAdmin": True,
+        "role": "ADMIN", 
+        "email": "ghulam.bakhshi@gmail.com"
+    }
+# ========= BAS ITNA HI =========
