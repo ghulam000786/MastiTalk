@@ -214,7 +214,7 @@ export default function AdminPanel() {
         ) : (
           <View style={{ paddingHorizontal: 16, gap: 12 }}>
             {payouts.map(p => (
-              <View key={p.id} style={s.card} testID={`payout-${p.id}`}>
+              <View key={p.id} style={s.card} testID={``payout-${p.id}``}>
                 <View style={s.cardHead}>
                   <View style={{ flex: 1 }}>
                     <Text style={s.userName}>{p.user_name || '—'}</Text>
