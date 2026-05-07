@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     
     "android": {
-      "package": "com.rehan.mastitalk",
+      "package": "com.ghulam000786.mastitalk",
       "permissions": [
         "CAMERA",
         "RECORD_AUDIO",
