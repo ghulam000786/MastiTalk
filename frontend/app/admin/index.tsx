@@ -117,7 +117,7 @@ export default function AdminPanel() {
         body: JSON.stringify({ note, transaction_ref: txRef }),
       });
       const verb = actionType === 'approve'? 'approved' : actionType === 'reject'? 'rejected' : 'marked paid';
-      Alert.alert('Done', Payout ${verb}.);
+      Alert.alert('Done', 'Payout ${verb}.');
       closeAction();
       load();
     } catch (e: any) {
