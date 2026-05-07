@@ -59,8 +59,8 @@ export default function AdminPanel() {
   const load = useCallback(async () => {
     try {
       const [pr, st] = await Promise.all([
-        api<{ payouts: Payout[] }>(/admin/payouts?status=${filter}),
-        api<Stats>('/admin/stats'),
+        api('/admin/payouts?status=${filter}'),
+        ('/admin/stats'),
       ]);
       setPayouts(pr.payouts || []);
       setStats(st);
