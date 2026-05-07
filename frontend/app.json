@@ -5,7 +5,6 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    
     "android": {
       "package": "com.ghulam000786.mastitalk",
       "permissions": [
@@ -13,7 +12,10 @@
         "RECORD_AUDIO",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
-        "MODIFY_AUDIO_SETTINGS"
+        "MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "plugins": [
@@ -31,6 +33,12 @@
           "microphonePermission": "MastiTalk ko mic access chahiye voice message ke liye"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b9c2370c-8ba9-4624-919a-879be8b1987e"
+      }
+    },
+    "owner": "ghulam000786"
   }
 }
