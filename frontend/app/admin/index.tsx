@@ -194,7 +194,7 @@ export default function AdminPanel() {
               key={f.key}
               style={[s.filterChip, filter === f.key && s.filterChipActive]}
               onPress={() => { setLoading(true); setFilter(f.key); }}
-              testID={filter-${f.key}}
+              testID={'filter-${f.key}'}
             >
               <Text style={[s.filterText, filter === f.key && { color: '#fff' }]}>{f.label}</Text>
             </TouchableOpacity>
