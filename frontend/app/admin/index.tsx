@@ -155,6 +155,7 @@ export default function AdminPanel() {
   const totalPaidInr = stats?.payouts_by_status?.paid?.inr || 0;
 
   return (
+  <>
     <SafeAreaView style={s.wrap} edges={['top']}>
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn} testID="admin-back">
@@ -296,7 +297,7 @@ export default function AdminPanel() {
                   </View>
                 )}
               </View>
-            ))}
+            )}
           </View>
         )}
       </ScrollView>
@@ -360,6 +361,7 @@ export default function AdminPanel() {
           </View>
         </View>
       </Modal>
+      </>
     </SafeAreaView>
   );
 }
